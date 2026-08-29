@@ -98,7 +98,7 @@ class App:
         chk = tk.Checkbutton(root, text="حذف الصفوف فارغة الكمية تلقائياً", variable=self.chk_var, font=("Arial", 10))
         chk.pack(pady=5)
         
-        btn_select = tk.Button(root, text="اختر ملف Excel لتنسيقه", font=("Arial", 12, "bold"), bg="#28a745", fg="white", px=15, py=8, command=self.process_file)
+        btn_select = tk.Button(root, text="اختر ملف Excel لتنسيقه", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=15, pady=8, command=self.process_file)
         btn_select.pack(pady=15)
 
     def process_file(self):
