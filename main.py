@@ -56,6 +56,8 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
 
     ws_out.append(["المادة", "اسم العميل", "الكمية"])
 
+    totals_per_item = {}
+
     for r in range(header_row + 1, ws_src.max_row + 1):
         qty_val = ws_src.cell(row=r, column=col_qty).value
         
@@ -68,19 +70,46 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
         if selected_items and item_val not in selected_items:
             continue
 
+        try:
+            num_qty = float(qty_val)
+        except (ValueError, TypeError):
+            num_qty = 0.0
+
         if isinstance(qty_val, float) and qty_val.is_integer():
             qty_val = int(qty_val)
+        elif isinstance(qty_val, (int, float)):
+            pass
+        else:
+            try:
+                qty_val = int(num_qty) if num_qty.is_integer() else num_qty
+            except:
+                pass
+
+        totals_per_item[item_val] = totals_per_item.get(item_val, 0) + num_qty
 
         ws_out.append([item_val, client_val, qty_val])
 
+    # إضافة صفوف المجموع الكلي لكل صنف في أسفل الجدول
+    ws_out.append([]) # صف فارغ كفاصل visual
+    
+    total_rows_start = ws_out.max_row
+    for item, total in totals_per_item.items():
+        total_formatted = int(total) if total.is_integer() else round(total, 2)
+        ws_out.append([f"مجموع {item}", "الإجمالي", total_formatted])
+
     font_header = Font(name='Arial', size=13, bold=True, color='FFFFFF')
     font_body = Font(name='Arial', size=12, bold=True, color='000000')
+    font_total = Font(name='Arial', size=13, bold=True, color='000000')
 
     fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+    fill_total = PatternFill(start_color='E2E2E2', end_color='E2E2E2', fill_type='solid')
 
     thin_side = Side(style='thin', color='000000')
+    double_side = Side(style='double', color='000000')
+    
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
 
     ws_out.row_dimensions[1].height = 28
 
@@ -88,16 +117,32 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
         if r > 1:
             ws_out.row_dimensions[r].height = 25
         is_header = (r == 1)
+        is_total_row = (r >= total_rows_start)
         
+        # تخطي الصف الفاصل إن وجد فارغاً
+        if not is_header and ws_out.cell(row=r, column=1).value is None:
+            ws_out.row_dimensions[r].height = 10
+            continue
+
         for c in range(1, 4):
             cell = ws_out.cell(row=r, column=c)
-            cell.font = font_header if is_header else font_body
-            cell.border = border_all
             
             if is_header:
+                cell.font = font_header
+                cell.border = border_all
                 cell.fill = fill_header
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            elif is_total_row:
+                cell.font = font_total
+                cell.border = border_total
+                cell.fill = fill_total
+                if c == 3:
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
             else:
+                cell.font = font_body
+                cell.border = border_all
                 if r % 2 == 0:
                     cell.fill = fill_zebra
                 
@@ -194,17 +239,14 @@ class ItemSelectorWindow(tk.Toplevel):
             var.set(False)
 
     def select_mahlayah(self):
-        # مطابقة دقيقة لصنف 'محلاية' فقط
         for item, var in self.item_vars.items():
             var.set(item.strip() == 'محلاية')
 
     def select_ghraibah(self):
-        # مطابقة دقيقة لصنف 'غريبة بالقشطة' فقط
         for item, var in self.item_vars.items():
             var.set(item.strip() == 'غريبة بالقشطة')
 
     def select_both(self):
-        # مطابقة الصنفين الدقيقين معاً
         for item, var in self.item_vars.items():
             name = item.strip()
             var.set(name == 'محلاية' or name == 'غريبة بالقشطة')
