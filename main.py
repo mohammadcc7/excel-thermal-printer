@@ -89,10 +89,10 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
 
         ws_out.append([item_val, client_val, qty_val])
 
-    # إضافة صفوف المجموع الكلي لكل صنف في أسفل الجدول
-    ws_out.append([]) # صف فارغ كفاصل visual
+    # إضافة صف فاصل وإجمالي المجموع لكل صنف
+    ws_out.append([]) # صف فاصل
     
-    total_rows_start = ws_out.max_row
+    total_rows_start = ws_out.max_row + 1
     for item, total in totals_per_item.items():
         total_formatted = int(total) if total.is_integer() else round(total, 2)
         ws_out.append([f"مجموع {item}", "الإجمالي", total_formatted])
@@ -111,6 +111,9 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
 
+    # محاذاة سنتر موحدة لجميع الخلايا
+    center_alignment = Alignment(horizontal='center', vertical='center')
+
     ws_out.row_dimensions[1].height = 28
 
     for r in range(1, ws_out.max_row + 1):
@@ -119,37 +122,27 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
         is_header = (r == 1)
         is_total_row = (r >= total_rows_start)
         
-        # تخطي الصف الفاصل إن وجد فارغاً
         if not is_header and ws_out.cell(row=r, column=1).value is None:
             ws_out.row_dimensions[r].height = 10
             continue
 
         for c in range(1, 4):
             cell = ws_out.cell(row=r, column=c)
+            cell.alignment = center_alignment
             
             if is_header:
                 cell.font = font_header
                 cell.border = border_all
                 cell.fill = fill_header
-                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             elif is_total_row:
                 cell.font = font_total
                 cell.border = border_total
                 cell.fill = fill_total
-                if c == 3:
-                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                else:
-                    cell.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
             else:
                 cell.font = font_body
                 cell.border = border_all
                 if r % 2 == 0:
                     cell.fill = fill_zebra
-                
-                if c == 3:
-                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                else:
-                    cell.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
 
     ws_out.column_dimensions['A'].width = 20
     ws_out.column_dimensions['B'].width = 12
@@ -171,7 +164,7 @@ class ItemSelectorWindow(tk.Toplevel):
     def __init__(self, parent, items, callback):
         super().__init__(parent)
         self.title("تحديد المواد المطلوبة للطباعة")
-        self.geometry("460x560")
+        self.geometry("480x580")
         self.resizable(False, False)
         self.callback = callback
         self.item_vars = {}
@@ -179,18 +172,15 @@ class ItemSelectorWindow(tk.Toplevel):
         lbl = tk.Label(self, text="اختر المواد المراد إدراجها في التقرير:", font=("Arial", 11, "bold"))
         lbl.pack(pady=8)
 
-        # أزرار الاختيار السريع الدقيقة
+        # أزرار الاختيار السريع المخصصة
         frame_quick = tk.LabelFrame(self, text="اختيار سريع مخصص", font=("Arial", 9, "bold"))
         frame_quick.pack(fill="x", padx=15, pady=5)
 
-        btn_mahlayah = tk.Button(frame_quick, text="محلاية فقط", font=("Arial", 10, "bold"), bg="#17a2b8", fg="white", command=self.select_mahlayah)
-        btn_mahlayah.pack(side="right", padx=5, pady=5)
-
-        btn_ghraibah = tk.Button(frame_quick, text="غريبة بالقشطة فقط", font=("Arial", 10, "bold"), bg="#fd7e14", fg="white", command=self.select_ghraibah)
-        btn_ghraibah.pack(side="right", padx=5, pady=5)
-
         btn_both = tk.Button(frame_quick, text="محلاية + غريبة", font=("Arial", 10, "bold"), bg="#6f42c1", fg="white", command=self.select_both)
         btn_both.pack(side="right", padx=5, pady=5)
+
+        btn_bashar = tk.Button(frame_quick, text="بشار", font=("Arial", 10, "bold"), bg="#17a2b8", fg="white", command=self.select_bashar)
+        btn_bashar.pack(side="right", padx=5, pady=5)
 
         # أزرار التحكم العامة
         frame_btns = tk.Frame(self)
@@ -206,29 +196,48 @@ class ItemSelectorWindow(tk.Toplevel):
         container = tk.Frame(self)
         container.pack(fill="both", expand=True, padx=15, pady=5)
 
-        canvas = tk.Canvas(container)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas)
+        self.canvas = tk.Canvas(container)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
+        scrollable_frame = tk.Frame(self.canvas)
 
         scrollable_frame.bind(
             "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+
+        # ربط حركة عجلة الماوس مع التمرير
+        self.bind_mouse_wheel(self)
+        self.bind_mouse_wheel(self.canvas)
+        self.bind_mouse_wheel(scrollable_frame)
 
         for item in items:
             var = tk.BooleanVar(value=True)
             chk = tk.Checkbutton(scrollable_frame, text=item, variable=var, font=("Arial", 10), anchor="w")
             chk.pack(fill="x", pady=2, padx=5)
+            self.bind_mouse_wheel(chk)
             self.item_vars[item] = var
 
         btn_confirm = tk.Button(self, text="استخراج ملف Excel الجاهز", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=10, pady=6, command=self.confirm_selection)
         btn_confirm.pack(pady=10)
+
+    def bind_mouse_wheel(self, widget):
+        widget.bind("<MouseWheel>", self._on_mousewheel)
+        widget.bind("<Button-4>", self._on_mousewheel)
+        widget.bind("<Button-5>", self._on_mousewheel)
+
+    def _on_mousewheel(self, event):
+        if event.num == 4:
+            self.canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            self.canvas.yview_scroll(1, "units")
+        else:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def select_all(self):
         for var in self.item_vars.values():
@@ -238,18 +247,22 @@ class ItemSelectorWindow(tk.Toplevel):
         for var in self.item_vars.values():
             var.set(False)
 
-    def select_mahlayah(self):
-        for item, var in self.item_vars.items():
-            var.set(item.strip() == 'محلاية')
-
-    def select_ghraibah(self):
-        for item, var in self.item_vars.items():
-            var.set(item.strip() == 'غريبة بالقشطة')
-
     def select_both(self):
         for item, var in self.item_vars.items():
             name = item.strip()
             var.set(name == 'محلاية' or name == 'غريبة بالقشطة')
+
+    def select_bashar(self):
+        target_items = {
+            "غاز سائل كبير",
+            "عش البلبل فستق نية",
+            "عش لحمة نية",
+            "كريمة",
+            "كنافة ناعمة"
+        }
+        for item, var in self.item_vars.items():
+            name = item.strip()
+            var.set(name in target_items)
 
     def confirm_selection(self):
         selected = [item for item, var in self.item_vars.items() if var.get()]
