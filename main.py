@@ -285,7 +285,7 @@ class App:
         scroll_y.pack(side="left", fill="y")
         self.tree.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.btn_process = tk.Button(root, text="⚡ معالجة واستخراج جميع الملفات دفعة واحدة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=10, state="disabled", command=self.process_files)
+        self.btn_process = tk.Button(root, text="⚡ معالجة واستخراج جميع الملفات إلى مجلد سطح المكتب", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=10, state="disabled", command=self.process_files)
         self.btn_process.pack(pady=10)
 
     def load_files_dialog(self):
@@ -297,25 +297,43 @@ class App:
     def handle_loaded_files(self, file_paths):
         self.current_files = file_paths
         self.preview_files(file_paths)
-        self.file_type_var.set("تعرّف تلقائي")
+        
+        if len(file_paths) == 1:
+            detected = self.auto_detect_type(file_paths[0])
+            self.file_type_var.set(detected)
+        else:
+            self.file_type_var.set("تعرّف تلقائي")
+            
         self.btn_process.config(state="normal")
 
     def auto_detect_type(self, file_path):
         try:
+            filename = os.path.basename(file_path).lower()
+            
+            if 'هرايس' in filename or 'harees' in filename:
+                return "هرايس بانواعها"
+            elif 'مستودع' in filename or 'جاهز' in filename or 'warehouse' in filename:
+                return "مستودع الجاهز"
+            elif 'فرن' in filename or 'oven' in filename:
+                return "ورقة الفرن"
+            elif 'مبيع' in filename or 'طلبات' in filename or 'محلاية' in filename:
+                return "محلاية + خمس مواد"
+
             wb = openpyxl.load_workbook(file_path, data_only=True)
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
                 if 'رأسية التقرير' in wb.sheetnames:
                     ws_head = wb['رأسية التقرير']
-                    val = str(ws_head.cell(row=1, column=2).value or '')
-                    if 'هرايس' in val:
-                        return "هرايس بانواعها"
-                    elif 'مستودع' in val:
-                        return "مستودع الجاهز"
+                    for r in range(1, 4):
+                        val = str(ws_head.cell(row=r, column=2).value or '').lower()
+                        if 'هرايس' in val:
+                            return "هرايس بانواعها"
+                        elif 'مستودع' in val:
+                            return "مستودع الجاهز"
                 return "ورقة الفرن"
             else:
                 return "محلاية + خمس مواد"
         except Exception:
-            return "ورقة الفرن"
+            return "محلاية + خمس مواد"
 
     def preview_files(self, file_paths):
         for item in self.tree.get_children():
@@ -347,16 +365,23 @@ class App:
         if not self.current_files:
             return
 
+        # تحديد مسار سطح المكتب وإنشاء مجلد "جاهز للطباعه" تلقائياً
+        desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+        output_dir = os.path.join(desktop_path, "جاهز للطباعه")
+        os.makedirs(output_dir, exist_ok=True)
+
         direct_print = self.direct_print_var.get()
         processed_count = 0
+        manual_type = self.file_type_var.get()
 
         for file_path in self.current_files:
-            detected_type = self.auto_detect_type(file_path)
-            dir_name = os.path.dirname(file_path)
+            if manual_type != "تعرّف تلقائي":
+                detected_type = manual_type
+            else:
+                detected_type = self.auto_detect_type(file_path)
 
             if detected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
                 try:
-                    # تعيين اسم الملف الناتج بناءً على نوع التقرير بدلاً من اسم الملف الأصلي
                     if detected_type == "هرايس بانواعها":
                         out_name = "جاهز_للطباعة_هرايس.xlsx"
                     elif detected_type == "مستودع الجاهز":
@@ -364,18 +389,17 @@ class App:
                     else:
                         out_name = "جاهز_للطباعة_ورقة_الفرن.xlsx"
 
-                    save_path = os.path.join(dir_name, out_name)
+                    save_path = os.path.join(output_dir, out_name)
                     format_standard_two_column_sheet(file_path, save_path, detected_type)
                     if direct_print:
                         print_excel_file(save_path)
                     processed_count += 1
                 except Exception:
                     pass
-            else:
-                # إذا كان الملف هو ملف طلبيات المبيع، يتم استخراج الملفين المخصصين بالأسماء الثابتة المرتبة
+            elif detected_type == "محلاية + خمس مواد":
                 try:
                     # 1. ملف محلاية + غريبة
-                    path_both = os.path.join(dir_name, "جاهز_للطباعة_محلاية_وغريبة.xlsx")
+                    path_both = os.path.join(output_dir, "جاهز_للطباعة_محلاية_وغريبة.xlsx")
                     format_sales_orders_custom(
                         file_path, path_both, 
                         selected_items=['محلاية', 'غريبة بالقشطة'], 
@@ -387,7 +411,7 @@ class App:
 
                     # 2. ملف خمس مواد
                     five_items_set = {"غاز سائل كبير", "عش البلبل فستق نية", "عش لحمة نية", "كريمة", "كنافة ناعمة"}
-                    path_five = os.path.join(dir_name, "جاهز_للطباعة_خمس_مواد.xlsx")
+                    path_five = os.path.join(output_dir, "جاهز_للطباعة_خمس_مواد.xlsx")
                     format_sales_orders_custom(
                         file_path, path_five, 
                         selected_items=five_items_set, 
@@ -401,12 +425,12 @@ class App:
                 except Exception:
                     pass
 
-        msg = f"تمت معالجة وإخراج جميع الملفات بأسماء واضحة وممنهجة بنجاح ({processed_count} ملف)!"
+        msg = f"تمت معالجة وإخراج جميع الملفات بنجاح تام ({processed_count} ملف)!\nموجودة الآن على سطح المكتب داخل مجلد (جاهز للطباعه)."
         if direct_print:
             msg += "\nوتم إرسالها للطباعة المباشرة على الطابعة الحرارية."
         messagebox.showinfo("نجاح تام", msg)
 
 if __name__ == "__main__":
-    root = Tk() if 'Tk' in globals() else tk.Tk()
+    root = tk.Tk()
     app = App(root)
     root.mainloop()
