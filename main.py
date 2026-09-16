@@ -7,79 +7,8 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 import subprocess
 import platform
 
-# محاولة استيراد مكتبة السحب والإسقاط المدعومة إن وجدت، مع وضع بديل آمن
-try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD
-    HAS_DND = True
-except ImportError:
-    HAS_DND = False
-
-class RoundedButton(tk.Canvas):
-    def __init__(self, parent, text, command, bg_color, hover_color, fg_color="white", width=160, height=48, radius=18, font=("Arial", 12, "bold")):
-        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0)
-        self.command = command
-        self.bg_color = bg_color
-        self.hover_color = hover_color
-        self.fg_color = fg_color
-        self.radius = radius
-        self.width = width
-        self.height = height
-        self.font = font
-        self.font_text = text
-        
-        self._draw(self.bg_color)
-        self.bind("<Enter>", self._on_enter)
-        self.bind("<Leave>", self._on_leave)
-        self.bind("<Button-1>", self._on_click)
-
-    def _draw(self, color):
-        self.delete("all")
-        r, w, h = self.radius, self.width, self.height
-        
-        self.create_arc((0, 0, 2*r, 2*r), start=90, extent=90, fill=color, outline=color)
-        self.create_arc((w-2*r, 0, w, 2*r), start=0, extent=90, fill=color, outline=color)
-        self.create_arc((0, h-2*r, 2*r, h), start=180, extent=90, fill=color, outline=color)
-        self.create_arc((w-2*r, h-2*r, w, h), start=270, extent=90, fill=color, outline=color)
-        
-        self.create_rectangle((r, 0, w-r, h), fill=color, outline=color)
-        self.create_rectangle((0, r, w, h-r), fill=color, outline=color)
-        
-        self.create_text(w/2, h/2, text=self.font_text, fill=self.fg_color, font=self.font)
-
-    def _on_enter(self, event): self._draw(self.hover_color)
-    def _on_leave(self, event): self._draw(self.bg_color)
-    def _on_click(self, event): 
-        if self.command: self.command()
-
-# --- استخراج المواد الفريدة لطلبيات المبيع ---
-def get_unique_items(input_path):
-    wb_src = openpyxl.load_workbook(input_path, data_only=True)
-    ws_src = wb_src.active
-    
-    header_row = 1
-    for r in range(1, min(10, ws_src.max_row + 1)):
-        row_vals = [str(ws_src.cell(row=r, column=c).value or '').strip() for c in range(1, ws_src.max_column + 1)]
-        if any(k in row_vals for k in ['المادة', 'تجهيز', 'اسم العميل']):
-            header_row = r
-            break
-            
-    col_item = 3
-    for c in range(1, ws_src.max_column + 1):
-        val = str(ws_src.cell(row=header_row, column=c).value or '').strip()
-        if val in ['المادة', 'اسم المادة']:
-            col_item = c
-            break
-
-    items = set()
-    for r in range(header_row + 1, ws_src.max_row + 1):
-        val = ws_src.cell(row=r, column=col_item).value
-        if val is not None and str(val).strip() != '':
-            items.add(str(val).strip())
-            
-    return sorted(list(items)), header_row
-
-# --- معالجة الملف الأول: محلاية + خمس مواد ---
-def format_sales_orders(input_path, output_path, selected_items, remove_empty=True):
+# --- معالجة الملف الأول: استخراج مواد محددة (للمحلاية والغريبة أو الخمس مواد) ---
+def format_sales_orders_custom(input_path, output_path, selected_items, report_title, remove_empty=True):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
     
@@ -99,7 +28,7 @@ def format_sales_orders(input_path, output_path, selected_items, remove_empty=Tr
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
-    ws_out.title = "محلاية و خمس مواد"
+    ws_out.title = report_title
     ws_out.views.sheetView[0].rightToLeft = True
 
     ws_out.append(["المادة", "اسم العميل", "الكمية"])
@@ -295,91 +224,7 @@ def print_excel_file(file_path):
     except Exception as e:
         return str(e)
 
-# --- نافذة تحديد المواد لطلبيات المبيع ---
-class ItemSelectorWindow(tk.Toplevel):
-    def __init__(self, parent, items, callback):
-        super().__init__(parent)
-        self.title("تحديد المواد المطلوبة للطباعة")
-        self.geometry("520x620")
-        self.resizable(False, False)
-        self.callback = callback
-        self.item_vars = {}
-
-        lbl = tk.Label(self, text="اختر المواد المراد إدراجها في التقرير:", font=("Arial", 11, "bold"))
-        lbl.pack(pady=8)
-
-        frame_quick = tk.LabelFrame(self, text="اختيار سريع مخصص", font=("Arial", 10, "bold"))
-        frame_quick.pack(fill="x", padx=15, pady=5)
-
-        btn_both = RoundedButton(
-            frame_quick, text="محلاية + غريبة", command=self.select_both, 
-            bg_color="#6f42c1", hover_color="#522f92", width=165, height=46, radius=16, font=("Arial", 12, "bold")
-        )
-        btn_both.pack(side="right", padx=10, pady=10)
-
-        btn_five = RoundedButton(
-            frame_quick, text="خمس مواد", command=self.select_five_items, 
-            bg_color="#17a2b8", hover_color="#117a8b", width=140, height=46, radius=16, font=("Arial", 12, "bold")
-        )
-        btn_five.pack(side="right", padx=10, pady=10)
-
-        frame_btns = tk.Frame(self)
-        frame_btns.pack(fill="x", padx=15, pady=5)
-
-        btn_all = tk.Button(frame_btns, text="تحديد الكل", font=("Arial", 10), command=self.select_all)
-        btn_all.pack(side="right", padx=5)
-
-        btn_none = tk.Button(frame_btns, text="إلغاء الكل", font=("Arial", 10), command=self.deselect_all)
-        btn_none.pack(side="right", padx=5)
-
-        container = tk.Frame(self)
-        container.pack(fill="both", expand=True, padx=15, pady=5)
-
-        self.canvas = tk.Canvas(container)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
-        scrollable_frame = tk.Frame(self.canvas)
-
-        scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-
-        self.canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        for item in items:
-            var = tk.BooleanVar(value=True)
-            chk = tk.Checkbutton(scrollable_frame, text=item, variable=var, font=("Arial", 10), anchor="w")
-            chk.pack(fill="x", pady=2, padx=5)
-            self.item_vars[item] = var
-
-        btn_confirm = tk.Button(self, text="استخراج الملف وجدولة الطباعة", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=12, pady=8, command=self.confirm_selection)
-        btn_confirm.pack(pady=10)
-
-    def select_all(self):
-        for var in self.item_vars.values(): var.set(True)
-
-    def deselect_all(self):
-        for var in self.item_vars.values(): var.set(False)
-
-    def select_both(self):
-        for item, var in self.item_vars.items():
-            name = item.strip()
-            var.set(name == 'محلاية' or name == 'غريبة بالقشطة')
-
-    def select_five_items(self):
-        target_items = {"غاز سائل كبير", "عش البلبل فستق نية", "عش لحمة نية", "كريمة", "كنافة ناعمة"}
-        for item, var in self.item_vars.items():
-            var.set(item.strip() in target_items)
-
-    def confirm_selection(self):
-        selected = [item for item, var in self.item_vars.items() if var.get()]
-        if not selected:
-            messagebox.showwarning("تنبيه", "يرجى تحديد مادة واحدة على الأقل!")
-            return
-        self.callback(selected)
-        self.destroy()
-
-# --- الشاشة الرئيسية للبرنامج (مع دعم السحب والإسقاط والطباعة المباشرة والمعالجة الجماعية) ---
+# --- الشاشة الرئيسية للبرنامج ---
 class App:
     def __init__(self, root):
         self.root = root
@@ -387,12 +232,11 @@ class App:
         self.root.geometry("700x660")
         self.root.resizable(False, False)
 
-        self.current_files = [] # قائمة الملفات (للملف الفردي أو الدفعة)
+        self.current_files = []
 
         lbl_title = tk.Label(root, text="منسق ملفات الأمين للطابعة الحرارية (8سم)", font=("Arial", 14, "bold"))
         lbl_title.pack(pady=10)
 
-        # إطار الخيارات والتحكم
         frame_controls = tk.LabelFrame(root, text="إعدادات ومعالجة التقارير", font=("Arial", 10, "bold"))
         frame_controls.pack(fill="x", padx=15, pady=5)
 
@@ -410,22 +254,20 @@ class App:
         self.combo_type.pack(side="right", padx=5)
 
         self.chk_var = tk.BooleanVar(value=True)
-        chk = tk.Checkbutton(frame_controls, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً (لمحلاية + خمس مواد)", variable=self.chk_var, font=("Arial", 10))
+        chk = tk.Checkbutton(frame_controls, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً", variable=self.chk_var, font=("Arial", 10))
         chk.pack(anchor="e", padx=15, pady=3)
 
         self.direct_print_var = tk.BooleanVar(value=False)
-        chk_print = tk.Checkbutton(frame_controls, text="إرسال للطابعة الحرارية مباشرة بعد المعالجة (بدون حفظ يدوي)", variable=self.direct_print_var, font=("Arial", 10, "bold"), fg="#d9534f")
+        chk_print = tk.Checkbutton(frame_controls, text="إرسال الملفات للطابعة الحرارية مباشرة بعد إنتاجها", variable=self.direct_print_var, font=("Arial", 10, "bold"), fg="#d9534f")
         chk_print.pack(anchor="e", padx=15, pady=3)
 
-        # أزرار اختيار الملفات
         frame_btns = tk.Frame(root)
         frame_btns.pack(pady=8)
 
-        btn_select = tk.Button(frame_btns, text="اختر ملف أو عدة ملفات Excel", font=("Arial", 11, "bold"), bg="#007bff", fg="white", padx=15, pady=6, command=self.load_files_dialog)
+        btn_select = tk.Button(frame_btns, text="📂 اختر ملف أو عدة ملفات Excel معاً", font=("Arial", 11, "bold"), bg="#007bff", fg="white", padx=15, pady=6, command=self.load_files_dialog)
         btn_select.pack(side="left", padx=5)
 
-        # منطقة السحب والإسقاط (أو المعاينة)
-        frame_preview = tk.LabelFrame(root, text="معاينة الملفات المسحوبة أو المختارة (اسحب الملفات وأفلتها هنا)", font=("Arial", 10, "bold"))
+        frame_preview = tk.LabelFrame(root, text="معاينة الملفات المختارة", font=("Arial", 10, "bold"))
         frame_preview.pack(fill="both", expand=True, padx=15, pady=5)
 
         scroll_x = ttk.Scrollbar(frame_preview, orient="horizontal")
@@ -443,16 +285,7 @@ class App:
         scroll_y.pack(side="left", fill="y")
         self.tree.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # تفعيل خاصية السحب والإسقاط (Drag and Drop)
-        if HAS_DND:
-            try:
-                root.drop_target_register(DND_FILES)
-                root.dnd_bind('<<Drop>>', self.handle_drop)
-                frame_preview.config(text="معاينة الملفات (اسحب ملفات الأكسل وأفلتها هنا مباشرة 📂)")
-            except Exception:
-                pass
-
-        self.btn_process = tk.Button(root, text="معالجة واستخراج (أو طباعة) الملفات دفعة واحدة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=10, state="disabled", command=self.process_files)
+        self.btn_process = tk.Button(root, text="⚡ معالجة واستخراج جميع الملفات دفعة واحدة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=10, state="disabled", command=self.process_files)
         self.btn_process.pack(pady=10)
 
     def load_files_dialog(self):
@@ -461,31 +294,10 @@ class App:
             return
         self.handle_loaded_files(list(file_paths))
 
-    def handle_drop(self, event):
-        raw_data = event.data
-        if not raw_data:
-            return
-        import re
-        if platform.system() == 'Windows':
-            files = re.findall(r'\{([^}]+)\}|(\S+)', raw_data)
-            file_paths = [f[0] or f[1] for f in files if f[0] or f[1]]
-        else:
-            file_paths = raw_data.split()
-
-        valid_files = [f for f in file_paths if f.lower().endswith(('.xlsx', '.xls'))]
-        if valid_files:
-            self.handle_loaded_files(valid_files)
-        else:
-            messagebox.showwarning("تنبيه", "يرجى سحب وإسقاط ملفات إكسل صالحة (.xlsx أو .xls)!")
-
     def handle_loaded_files(self, file_paths):
         self.current_files = file_paths
         self.preview_files(file_paths)
-        if len(file_paths) == 1:
-            self.file_type_var.set("تعرّف تلقائي")
-            self.auto_detect_type(file_paths[0])
-        else:
-            self.file_type_var.set("تعرّف تلقائي")
+        self.file_type_var.set("تعرّف تلقائي")
         self.btn_process.config(state="normal")
 
     def auto_detect_type(self, file_path):
@@ -535,63 +347,66 @@ class App:
         if not self.current_files:
             return
 
-        success_count = 0
         direct_print = self.direct_print_var.get()
+        processed_count = 0
 
         for file_path in self.current_files:
-            detected_type = self.file_type_var.get()
-            if detected_type == "تعرّف تلقائي":
-                detected_type = self.auto_detect_type(file_path)
+            detected_type = self.auto_detect_type(file_path)
+            dir_name = os.path.dirname(file_path)
 
-            if detected_type == "محلاية + خمس مواد":
+            if detected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
                 try:
-                    items, _ = get_unique_items(file_path)
-                    if not items:
-                        continue
-                    
-                    def process_with_selection(selected_items):
-                        base_name = os.path.basename(file_path)
-                        save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
-                        format_sales_orders(file_path, save_path, selected_items, remove_empty=self.chk_var.get())
-                        if direct_print:
-                            print_excel_file(save_path)
-                        nonlocal success_count
-                        success_count += 1
-
-                    if len(self.current_files) == 1:
-                        ItemSelectorWindow(self.root, items, process_with_selection)
-                        return
+                    # تعيين اسم الملف الناتج بناءً على نوع التقرير بدلاً من اسم الملف الأصلي
+                    if detected_type == "هرايس بانواعها":
+                        out_name = "جاهز_للطباعة_هرايس.xlsx"
+                    elif detected_type == "مستودع الجاهز":
+                        out_name = "جاهز_للطباعة_مستودع_الجاهز.xlsx"
                     else:
-                        base_name = os.path.basename(file_path)
-                        save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
-                        format_sales_orders(file_path, save_path, items, remove_empty=self.chk_var.get())
-                        if direct_print:
-                            print_excel_file(save_path)
-                        success_count += 1
-                except Exception:
-                    pass
+                        out_name = "جاهز_للطباعة_ورقة_الفرن.xlsx"
 
-            elif detected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
-                try:
-                    base_name = os.path.basename(file_path)
-                    save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
+                    save_path = os.path.join(dir_name, out_name)
                     format_standard_two_column_sheet(file_path, save_path, detected_type)
                     if direct_print:
                         print_excel_file(save_path)
-                    success_count += 1
+                    processed_count += 1
+                except Exception:
+                    pass
+            else:
+                # إذا كان الملف هو ملف طلبيات المبيع، يتم استخراج الملفين المخصصين بالأسماء الثابتة المرتبة
+                try:
+                    # 1. ملف محلاية + غريبة
+                    path_both = os.path.join(dir_name, "جاهز_للطباعة_محلاية_وغريبة.xlsx")
+                    format_sales_orders_custom(
+                        file_path, path_both, 
+                        selected_items=['محلاية', 'غريبة بالقشطة'], 
+                        report_title="محلاية + غريبة", 
+                        remove_empty=self.chk_var.get()
+                    )
+                    if direct_print:
+                        print_excel_file(path_both)
+
+                    # 2. ملف خمس مواد
+                    five_items_set = {"غاز سائل كبير", "عش البلبل فستق نية", "عش لحمة نية", "كريمة", "كنافة ناعمة"}
+                    path_five = os.path.join(dir_name, "جاهز_للطباعة_خمس_مواد.xlsx")
+                    format_sales_orders_custom(
+                        file_path, path_five, 
+                        selected_items=five_items_set, 
+                        report_title="خمس مواد", 
+                        remove_empty=self.chk_var.get()
+                    )
+                    if direct_print:
+                        print_excel_file(path_five)
+
+                    processed_count += 2
                 except Exception:
                     pass
 
-        if success_count > 0:
-            msg = f"تمت معالجة وإخراج {success_count} ملف بنجاح!"
-            if direct_print:
-                msg += "\nوتم إرسالها للطباعة المباشرة على الطابعة الحرارية."
-            messagebox.showinfo("نجاح تام", msg)
+        msg = f"تمت معالجة وإخراج جميع الملفات بأسماء واضحة وممنهجة بنجاح ({processed_count} ملف)!"
+        if direct_print:
+            msg += "\nوتم إرسالها للطباعة المباشرة على الطابعة الحرارية."
+        messagebox.showinfo("نجاح تام", msg)
 
 if __name__ == "__main__":
-    if HAS_DND:
-        root = TkinterDnD.Tk()
-    else:
-        root = tk.Tk()
+    root = Tk() if 'Tk' in globals() else tk.Tk()
     app = App(root)
     root.mainloop()
