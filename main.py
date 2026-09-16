@@ -195,8 +195,8 @@ def format_sales_orders(input_path, output_path, selected_items, remove_empty=Tr
 
     wb_out.save(output_path)
 
-# --- معالجة الملف الثاني: ورقة الفرن ---
-def format_oven_sheet(input_path, output_path):
+# --- معالجة الملف الثاني والثالث: ورقة الفرن وهرايس بانواعها ---
+def format_standard_two_column_sheet(input_path, output_path, report_title):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
 
@@ -207,11 +207,11 @@ def format_oven_sheet(input_path, output_path):
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
-    ws_out.title = "ورقة الفرن"
+    ws_out.title = report_title
     ws_out.views.sheetView[0].rightToLeft = True
 
     ws_out.merge_cells('A1:B1')
-    ws_out['A1'] = "ورقة الفرن"
+    ws_out['A1'] = report_title
     ws_out['A2'] = "اسم المادة"
     ws_out['B2'] = "المطلوب"
 
@@ -226,7 +226,7 @@ def format_oven_sheet(input_path, output_path):
             formatted_qty = qty
         ws_out.append([item_name, formatted_qty])
 
-    font_title = Font(name='Arial', size=26, bold=True)
+    font_title = Font(name='Arial', size=24, bold=True)
     font_header = Font(name='Arial', size=19, bold=True, color='FFFFFF')
     font_body = Font(name='Arial', size=18, bold=True)
 
@@ -420,7 +420,7 @@ class App:
         self.combo_type = ttk.Combobox(
             frame_type, 
             textvariable=self.file_type_var, 
-            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "الملف الثالث (قريباً)"],
+            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "هرايس بانواعها"],
             state="readonly", 
             font=("Arial", 10, "bold"),
             width=22
@@ -466,7 +466,6 @@ class App:
         self.current_file_path = file_path
         self.preview_excel(file_path)
         
-        # إعادة ضبط نوع التقرير إلى التعرّف التلقائي ليتم فحص الملف الجديد بدقة وتحديث القائمة
         self.file_type_var.set("تعرّف تلقائي")
         self.auto_detect_type(file_path)
         
@@ -478,6 +477,13 @@ class App:
         try:
             wb = openpyxl.load_workbook(file_path, data_only=True)
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
+                # التحقق مما إذا كان الملف يخص ورقة الفرن أو هرايس بانواعها عبر شيت رأسية التقرير أو محتوى البيانات
+                if 'رأسية التقرير' in wb.sheetnames:
+                    ws_head = wb['رأسية التقرير']
+                    val = str(ws_head.cell(row=1, column=2).value or '')
+                    if 'هرايس' in val:
+                        self.combo_type.set("هرايس بانواعها")
+                        return
                 self.combo_type.set("ورقة الفرن")
             else:
                 self.combo_type.set("محلاية + خمس مواد")
@@ -545,14 +551,14 @@ class App:
             except Exception as e:
                 messagebox.showerror("خطأ", f"حدث خطأ أثناء قراءة المواد:\n{str(e)}")
 
-        elif selected_type == "ورقة الفرن":
+        elif selected_type in ["ورقة الفرن", "هرايس بانواعها"]:
             base_name = os.path.basename(self.current_file_path)
             save_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="جاهز_للطباعة_" + base_name, filetypes=[("Excel Files", "*.xlsx")])
             if not save_path:
                 return
             try:
-                format_oven_sheet(self.current_file_path, save_path)
-                messagebox.showinfo("نجاح", f"تم استخراج ملف ورقة الفرن بنجاح:\n{save_path}")
+                format_standard_two_column_sheet(self.current_file_path, save_path, selected_type)
+                messagebox.showinfo("نجاح", f"تم استخراج ملف {selected_type} بنجاح:\n{save_path}")
             except Exception as e:
                 messagebox.showerror("خطأ", f"حدث خطأ أثناء معالجة الملف:\n{str(e)}")
         else:
