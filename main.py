@@ -179,8 +179,8 @@ class ItemSelectorWindow(tk.Toplevel):
         btn_both = tk.Button(frame_quick, text="محلاية + غريبة", font=("Arial", 10, "bold"), bg="#6f42c1", fg="white", command=self.select_both)
         btn_both.pack(side="right", padx=5, pady=5)
 
-        btn_bashar = tk.Button(frame_quick, text="بشار", font=("Arial", 10, "bold"), bg="#17a2b8", fg="white", command=self.select_bashar)
-        btn_bashar.pack(side="right", padx=5, pady=5)
+        btn_five_items = tk.Button(frame_quick, text="خمس مواد", font=("Arial", 10, "bold"), bg="#17a2b8", fg="white", command=self.select_five_items)
+        btn_five_items.pack(side="right", padx=5, pady=5)
 
         # أزرار التحكم العامة
         frame_btns = tk.Frame(self)
@@ -252,7 +252,7 @@ class ItemSelectorWindow(tk.Toplevel):
             name = item.strip()
             var.set(name == 'محلاية' or name == 'غريبة بالقشطة')
 
-    def select_bashar(self):
+    def select_five_items(self):
         target_items = {
             "غاز سائل كبير",
             "عش البلبل فستق نية",
