@@ -5,6 +5,57 @@ from tkinter import filedialog, messagebox, ttk
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 
+class RoundedButton(tk.Canvas):
+    def __init__(self, parent, text, command, bg_color, hover_color, fg_color="white", width=160, height=48, radius=18, font=("Arial", 12, "bold")):
+        super().__init__(parent, width=width, height=height, bg=parent["bg"], highlightthickness=0)
+        self.command = command
+        self.bg_color = bg_color
+        self.hover_color = hover_color
+        self.fg_color = fg_color
+        self.radius = radius
+        self.width = width
+        self.height = height
+        self.font = font
+        self.font_text = text
+        
+        self._draw(self.bg_color)
+        
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+
+    def _draw(self, color):
+        self.delete("all")
+        r = self.radius
+        w = self.width
+        h = self.height
+        
+        # رسم المستطيل بالزوايا البيضاوية
+        self.create_arc((0, 0, 2*r, 2*r), start=90, extent=90, fill=color, outline=color)
+        self.create_arc((w-2*r, 0, w, 2*r), start=0, extent=90, fill=color, outline=color)
+        self.create_arc((0, h-2*r, 2*r, h), start=180, extent=90, fill=color, outline=color)
+        self.create_arc((w-2*r, h-2*r, w, h), start=270, extent=90, fill=color, outline=color)
+        
+        self.create_rectangle((r, 0, w-r, h), fill=color, outline=color)
+        self.create_rectangle((0, r, w, h-r), fill=color, outline=color)
+        
+        # كتابة النص الواضح والكبير في منتصف الزر
+        self.create_text(w/2, h/2, text=self.font_text, fill=self.fg_color, font=self.font)
+
+    def set_text(self, text):
+        self.font_text = text
+        self._draw(self.bg_color)
+
+    def _on_enter(self, event):
+        self._draw(self.hover_color)
+
+    def _on_leave(self, event):
+        self._draw(self.bg_color)
+
+    def _on_click(self, event):
+        if self.command:
+            self.command()
+
 def get_unique_items(input_path):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -89,8 +140,7 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
 
         ws_out.append([item_val, client_val, qty_val])
 
-    # إضافة صف فاصل وإجمالي المجموع لكل صنف
-    ws_out.append([]) # صف فاصل
+    ws_out.append([])
     
     total_rows_start = ws_out.max_row + 1
     for item, total in totals_per_item.items():
@@ -111,7 +161,6 @@ def format_excel_for_thermal(input_path, output_path, selected_items, remove_emp
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
 
-    # محاذاة سنتر موحدة لجميع الخلايا
     center_alignment = Alignment(horizontal='center', vertical='center')
 
     ws_out.row_dimensions[1].height = 28
@@ -164,7 +213,7 @@ class ItemSelectorWindow(tk.Toplevel):
     def __init__(self, parent, items, callback):
         super().__init__(parent)
         self.title("تحديد المواد المطلوبة للطباعة")
-        self.geometry("480x580")
+        self.geometry("520x620")
         self.resizable(False, False)
         self.callback = callback
         self.item_vars = {}
@@ -172,24 +221,46 @@ class ItemSelectorWindow(tk.Toplevel):
         lbl = tk.Label(self, text="اختر المواد المراد إدراجها في التقرير:", font=("Arial", 11, "bold"))
         lbl.pack(pady=8)
 
-        # أزرار الاختيار السريع المخصصة
-        frame_quick = tk.LabelFrame(self, text="اختيار سريع مخصص", font=("Arial", 9, "bold"))
+        # أزرار الاختيار السريع المخصصة بحجم أكبر وخط أوضح
+        frame_quick = tk.LabelFrame(self, text="اختيار سريع مخصص", font=("Arial", 10, "bold"))
         frame_quick.pack(fill="x", padx=15, pady=5)
 
-        btn_both = tk.Button(frame_quick, text="محلاية + غريبة", font=("Arial", 10, "bold"), bg="#6f42c1", fg="white", command=self.select_both)
-        btn_both.pack(side="right", padx=5, pady=5)
+        # زر محلاية + غريبة
+        btn_both = RoundedButton(
+            frame_quick, 
+            text="محلاية + غريبة", 
+            command=self.select_both, 
+            bg_color="#6f42c1", 
+            hover_color="#522f92", 
+            width=165, 
+            height=46, 
+            radius=16, 
+            font=("Arial", 12, "bold")
+        )
+        btn_both.pack(side="right", padx=10, pady=10)
 
-        btn_five_items = tk.Button(frame_quick, text="خمس مواد", font=("Arial", 10, "bold"), bg="#17a2b8", fg="white", command=self.select_five_items)
-        btn_five_items.pack(side="right", padx=5, pady=5)
+        # زر خمس مواد
+        btn_five = RoundedButton(
+            frame_quick, 
+            text="خمس مواد", 
+            command=self.select_five_items, 
+            bg_color="#17a2b8", 
+            hover_color="#117a8b", 
+            width=140, 
+            height=46, 
+            radius=16, 
+            font=("Arial", 12, "bold")
+        )
+        btn_five.pack(side="right", padx=10, pady=10)
 
         # أزرار التحكم العامة
         frame_btns = tk.Frame(self)
         frame_btns.pack(fill="x", padx=15, pady=5)
 
-        btn_all = tk.Button(frame_btns, text="تحديد الكل", font=("Arial", 9), command=self.select_all)
+        btn_all = tk.Button(frame_btns, text="تحديد الكل", font=("Arial", 10), command=self.select_all)
         btn_all.pack(side="right", padx=5)
 
-        btn_none = tk.Button(frame_btns, text="إلغاء الكل", font=("Arial", 9), command=self.deselect_all)
+        btn_none = tk.Button(frame_btns, text="إلغاء الكل", font=("Arial", 10), command=self.deselect_all)
         btn_none.pack(side="right", padx=5)
 
         # قائمة المواد القابلة للتمرير
@@ -211,7 +282,6 @@ class ItemSelectorWindow(tk.Toplevel):
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # ربط حركة عجلة الماوس مع التمرير
         self.bind_mouse_wheel(self)
         self.bind_mouse_wheel(self.canvas)
         self.bind_mouse_wheel(scrollable_frame)
@@ -223,7 +293,7 @@ class ItemSelectorWindow(tk.Toplevel):
             self.bind_mouse_wheel(chk)
             self.item_vars[item] = var
 
-        btn_confirm = tk.Button(self, text="استخراج ملف Excel الجاهز", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=10, pady=6, command=self.confirm_selection)
+        btn_confirm = tk.Button(self, text="استخراج ملف Excel الجاهز", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=12, pady=8, command=self.confirm_selection)
         btn_confirm.pack(pady=10)
 
     def bind_mouse_wheel(self, widget):
