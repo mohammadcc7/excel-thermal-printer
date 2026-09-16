@@ -4,6 +4,15 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+import subprocess
+import platform
+
+# محاولة استيراد مكتبة السحب والإسقاط المدعومة إن وجدت، مع وضع بديل آمن
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    HAS_DND = True
+except ImportError:
+    HAS_DND = False
 
 class RoundedButton(tk.Canvas):
     def __init__(self, parent, text, command, bg_color, hover_color, fg_color="white", width=160, height=48, radius=18, font=("Arial", 12, "bold")):
@@ -42,7 +51,7 @@ class RoundedButton(tk.Canvas):
     def _on_click(self, event): 
         if self.command: self.command()
 
-# --- دالة استخراج المواد الفريدة من ملف طلبيات المبيع ---
+# --- استخراج المواد الفريدة لطلبيات المبيع ---
 def get_unique_items(input_path):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -205,8 +214,6 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
         if any(row):
             valid_vals = [v for v in row if v is not None and str(v).strip() != '']
             if len(valid_vals) >= 2:
-                # إذا كان الملف يحتوي على 3 أعمدة (مثل مستودع الجاهز: اسم المادة، المستودع، المطلوب)
-                # يتم أخذ العمود الأول (اسم المادة) والأخير (المطلوب)، وتخطّي عمود المستودع بالمنتصف تلقائياً.
                 item_name = valid_vals[0]
                 qty = valid_vals[-1]
                 data.append([item_name, qty])
@@ -277,6 +284,17 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
 
     wb_out.save(output_path)
 
+# --- دالة الطباعة المباشرة ---
+def print_excel_file(file_path):
+    try:
+        if platform.system() == 'Windows':
+            os.startfile(file_path, "print")
+        else:
+            subprocess.run(['lpr', file_path], check=True)
+        return True
+    except Exception as e:
+        return str(e)
+
 # --- نافذة تحديد المواد لطلبيات المبيع ---
 class ItemSelectorWindow(tk.Toplevel):
     def __init__(self, parent, items, callback):
@@ -294,28 +312,14 @@ class ItemSelectorWindow(tk.Toplevel):
         frame_quick.pack(fill="x", padx=15, pady=5)
 
         btn_both = RoundedButton(
-            frame_quick, 
-            text="محلاية + غريبة", 
-            command=self.select_both, 
-            bg_color="#6f42c1", 
-            hover_color="#522f92", 
-            width=165, 
-            height=46, 
-            radius=16, 
-            font=("Arial", 12, "bold")
+            frame_quick, text="محلاية + غريبة", command=self.select_both, 
+            bg_color="#6f42c1", hover_color="#522f92", width=165, height=46, radius=16, font=("Arial", 12, "bold")
         )
         btn_both.pack(side="right", padx=10, pady=10)
 
         btn_five = RoundedButton(
-            frame_quick, 
-            text="خمس مواد", 
-            command=self.select_five_items, 
-            bg_color="#17a2b8", 
-            hover_color="#117a8b", 
-            width=140, 
-            height=46, 
-            radius=16, 
-            font=("Arial", 12, "bold")
+            frame_quick, text="خمس مواد", command=self.select_five_items, 
+            bg_color="#17a2b8", hover_color="#117a8b", width=140, height=46, radius=16, font=("Arial", 12, "bold")
         )
         btn_five.pack(side="right", padx=10, pady=10)
 
@@ -335,43 +339,21 @@ class ItemSelectorWindow(tk.Toplevel):
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=self.canvas.yview)
         scrollable_frame = tk.Frame(self.canvas)
 
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-
+        scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        self.bind_mouse_wheel(self)
-        self.bind_mouse_wheel(self.canvas)
-        self.bind_mouse_wheel(scrollable_frame)
-
         for item in items:
             var = tk.BooleanVar(value=True)
             chk = tk.Checkbutton(scrollable_frame, text=item, variable=var, font=("Arial", 10), anchor="w")
             chk.pack(fill="x", pady=2, padx=5)
-            self.bind_mouse_wheel(chk)
             self.item_vars[item] = var
 
-        btn_confirm = tk.Button(self, text="استخراج ملف Excel الجاهز", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=12, pady=8, command=self.confirm_selection)
+        btn_confirm = tk.Button(self, text="استخراج الملف وجدولة الطباعة", font=("Arial", 11, "bold"), bg="#28a745", fg="white", padx=12, pady=8, command=self.confirm_selection)
         btn_confirm.pack(pady=10)
-
-    def bind_mouse_wheel(self, widget):
-        widget.bind("<MouseWheel>", self._on_mousewheel)
-        widget.bind("<Button-4>", self._on_mousewheel)
-        widget.bind("<Button-5>", self._on_mousewheel)
-
-    def _on_mousewheel(self, event):
-        if event.num == 4:
-            self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5:
-            self.canvas.yview_scroll(1, "units")
-        else:
-            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def select_all(self):
         for var in self.item_vars.values(): var.set(True)
@@ -385,16 +367,9 @@ class ItemSelectorWindow(tk.Toplevel):
             var.set(name == 'محلاية' or name == 'غريبة بالقشطة')
 
     def select_five_items(self):
-        target_items = {
-            "غاز سائل كبير",
-            "عش البلبل فستق نية",
-            "عش لحمة نية",
-            "كريمة",
-            "كنافة ناعمة"
-        }
+        target_items = {"غاز سائل كبير", "عش البلبل فستق نية", "عش لحمة نية", "كريمة", "كنافة ناعمة"}
         for item, var in self.item_vars.items():
-            name = item.strip()
-            var.set(name in target_items)
+            var.set(item.strip() in target_items)
 
     def confirm_selection(self):
         selected = [item for item, var in self.item_vars.items() if var.get()]
@@ -404,54 +379,61 @@ class ItemSelectorWindow(tk.Toplevel):
         self.callback(selected)
         self.destroy()
 
-# --- الشاشة الرئيسية الشاملة للبرنامج ---
+# --- الشاشة الرئيسية للبرنامج (مع دعم السحب والإسقاط والطباعة المباشرة والمعالجة الجماعية) ---
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("منسق طلبات الأمين الحراري (8سم)")
-        self.root.geometry("680x620")
+        self.root.title("منسق طلبات الأمين الحراري (8سم) - الإصدار الشامل الذكي")
+        self.root.geometry("700x660")
         self.root.resizable(False, False)
 
-        self.current_file_path = None
+        self.current_files = [] # قائمة الملفات (للملف الفردي أو الدفعة)
 
         lbl_title = tk.Label(root, text="منسق ملفات الأمين للطابعة الحرارية (8سم)", font=("Arial", 14, "bold"))
         lbl_title.pack(pady=10)
 
-        frame_type = tk.Frame(root)
-        frame_type.pack(pady=5)
+        # إطار الخيارات والتحكم
+        frame_controls = tk.LabelFrame(root, text="إعدادات ومعالجة التقارير", font=("Arial", 10, "bold"))
+        frame_controls.pack(fill="x", padx=15, pady=5)
+
+        frame_type = tk.Frame(frame_controls)
+        frame_type.pack(pady=8, fill="x", padx=10)
 
         tk.Label(frame_type, text="نوع التقرير:", font=("Arial", 11, "bold")).pack(side="right", padx=5)
         
         self.file_type_var = tk.StringVar(value="تعرّف تلقائي")
         self.combo_type = ttk.Combobox(
-            frame_type, 
-            textvariable=self.file_type_var, 
+            frame_type, textvariable=self.file_type_var, 
             values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"],
-            state="readonly", 
-            font=("Arial", 10, "bold"),
-            width=22
+            state="readonly", font=("Arial", 10, "bold"), width=22
         )
         self.combo_type.pack(side="right", padx=5)
 
         self.chk_var = tk.BooleanVar(value=True)
-        chk = tk.Checkbutton(root, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً (لمحلاية + خمس مواد)", variable=self.chk_var, font=("Arial", 10))
-        chk.pack(pady=3)
+        chk = tk.Checkbutton(frame_controls, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً (لمحلاية + خمس مواد)", variable=self.chk_var, font=("Arial", 10))
+        chk.pack(anchor="e", padx=15, pady=3)
 
-        btn_select = tk.Button(root, text="اختر ملف Excel لاستعراضه وتنسيقه", font=("Arial", 11, "bold"), bg="#007bff", fg="white", padx=15, pady=6, command=self.load_file)
-        btn_select.pack(pady=8)
+        self.direct_print_var = tk.BooleanVar(value=False)
+        chk_print = tk.Checkbutton(frame_controls, text="إرسال للطابعة الحرارية مباشرة بعد المعالجة (بدون حفظ يدوي)", variable=self.direct_print_var, font=("Arial", 10, "bold"), fg="#d9534f")
+        chk_print.pack(anchor="e", padx=15, pady=3)
 
-        frame_preview = tk.LabelFrame(root, text="معاينة سريعة للملف", font=("Arial", 10, "bold"))
+        # أزرار اختيار الملفات
+        frame_btns = tk.Frame(root)
+        frame_btns.pack(pady=8)
+
+        btn_select = tk.Button(frame_btns, text="اختر ملف أو عدة ملفات Excel", font=("Arial", 11, "bold"), bg="#007bff", fg="white", padx=15, pady=6, command=self.load_files_dialog)
+        btn_select.pack(side="left", padx=5)
+
+        # منطقة السحب والإسقاط (أو المعاينة)
+        frame_preview = tk.LabelFrame(root, text="معاينة الملفات المسحوبة أو المختارة (اسحب الملفات وأفلتها هنا)", font=("Arial", 10, "bold"))
         frame_preview.pack(fill="both", expand=True, padx=15, pady=5)
 
         scroll_x = ttk.Scrollbar(frame_preview, orient="horizontal")
         scroll_y = ttk.Scrollbar(frame_preview, orient="vertical")
 
         self.tree = ttk.Treeview(
-            frame_preview, 
-            show="headings", 
-            height=7, 
-            xscrollcommand=scroll_x.set, 
-            yscrollcommand=scroll_y.set
+            frame_preview, show="headings", height=7, 
+            xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set
         )
         
         scroll_x.config(command=self.tree.xview)
@@ -461,25 +443,52 @@ class App:
         scroll_y.pack(side="left", fill="y")
         self.tree.pack(fill="both", expand=True, padx=5, pady=5)
 
-        self.btn_process = tk.Button(root, text="استخراج الملف الجاهز للطباعة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=8, state="disabled", command=self.process_file)
-        self.btn_process.pack(pady=12)
+        # تفعيل خاصية السحب والإسقاط (Drag and Drop)
+        if HAS_DND:
+            try:
+                root.drop_target_register(DND_FILES)
+                root.dnd_bind('<<Drop>>', self.handle_drop)
+                frame_preview.config(text="معاينة الملفات (اسحب ملفات الأكسل وأفلتها هنا مباشرة 📂)")
+            except Exception:
+                pass
 
-    def load_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx *.xls")])
-        if not file_path:
+        self.btn_process = tk.Button(root, text="معالجة واستخراج (أو طباعة) الملفات دفعة واحدة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=10, state="disabled", command=self.process_files)
+        self.btn_process.pack(pady=10)
+
+    def load_files_dialog(self):
+        file_paths = filedialog.askopenfilenames(filetypes=[("Excel Files", "*.xlsx *.xls")])
+        if not file_paths:
             return
+        self.handle_loaded_files(list(file_paths))
 
-        self.current_file_path = file_path
-        self.preview_excel(file_path)
-        
-        self.file_type_var.set("تعرّف تلقائي")
-        self.auto_detect_type(file_path)
-        
+    def handle_drop(self, event):
+        raw_data = event.data
+        if not raw_data:
+            return
+        import re
+        if platform.system() == 'Windows':
+            files = re.findall(r'\{([^}]+)\}|(\S+)', raw_data)
+            file_paths = [f[0] or f[1] for f in files if f[0] or f[1]]
+        else:
+            file_paths = raw_data.split()
+
+        valid_files = [f for f in file_paths if f.lower().endswith(('.xlsx', '.xls'))]
+        if valid_files:
+            self.handle_loaded_files(valid_files)
+        else:
+            messagebox.showwarning("تنبيه", "يرجى سحب وإسقاط ملفات إكسل صالحة (.xlsx أو .xls)!")
+
+    def handle_loaded_files(self, file_paths):
+        self.current_files = file_paths
+        self.preview_files(file_paths)
+        if len(file_paths) == 1:
+            self.file_type_var.set("تعرّف تلقائي")
+            self.auto_detect_type(file_paths[0])
+        else:
+            self.file_type_var.set("تعرّف تلقائي")
         self.btn_process.config(state="normal")
 
     def auto_detect_type(self, file_path):
-        if self.file_type_var.get() != "تعرّف تلقائي":
-            return
         try:
             wb = openpyxl.load_workbook(file_path, data_only=True)
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
@@ -487,32 +496,29 @@ class App:
                     ws_head = wb['رأسية التقرير']
                     val = str(ws_head.cell(row=1, column=2).value or '')
                     if 'هرايس' in val:
-                        self.combo_type.set("هرايس بانواعها")
-                        return
+                        return "هرايس بانواعها"
                     elif 'مستودع' in val:
-                        self.combo_type.set("مستودع الجاهز")
-                        return
-                self.combo_type.set("ورقة الفرن")
+                        return "مستودع الجاهز"
+                return "ورقة الفرن"
             else:
-                self.combo_type.set("محلاية + خمس مواد")
+                return "محلاية + خمس مواد"
         except Exception:
-            pass
+            return "ورقة الفرن"
 
-    def preview_excel(self, file_path):
+    def preview_files(self, file_paths):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
         try:
-            wb = openpyxl.load_workbook(file_path, data_only=True)
+            first_file = file_paths[0]
+            wb = openpyxl.load_workbook(first_file, data_only=True)
             ws = wb.active
-
             rows = list(ws.iter_rows(values_only=True))
             if not rows:
                 return
 
             header_row = rows[0]
             cols = [f"col_{i}" for i in range(len(header_row))]
-            
             self.tree["columns"] = cols
 
             for i, col_name in enumerate(header_row):
@@ -520,59 +526,72 @@ class App:
                 self.tree.heading(f"col_{i}", text=header_text)
                 self.tree.column(f"col_{i}", width=120, anchor="center")
 
-            for row in rows[1:10]:
+            for row in rows[1:8]:
                 self.tree.insert("", "end", values=[str(v) if v is not None else "" for v in row])
-
         except Exception as e:
-            messagebox.showerror("خطأ في المعاينة", f"تعذر قراءة الملف للمعاينة:\n{str(e)}")
+            messagebox.showerror("خطأ", f"تعذر معاينة الملف:\n{str(e)}")
 
-    def process_file(self):
-        if not self.current_file_path:
+    def process_files(self):
+        if not self.current_files:
             return
 
-        selected_type = self.file_type_var.get()
-        
-        if selected_type == "تعرّف تلقائي":
-            self.auto_detect_type(self.current_file_path)
-            selected_type = self.file_type_var.get()
+        success_count = 0
+        direct_print = self.direct_print_var.get()
 
-        if selected_type == "محلاية + خمس مواد":
-            try:
-                items, _ = get_unique_items(self.current_file_path)
-                if not items:
-                    messagebox.showerror("خطأ", "لم يتم العثور على أي مواد داخل الملف!")
-                    return
+        for file_path in self.current_files:
+            detected_type = self.file_type_var.get()
+            if detected_type == "تعرّف تلقائي":
+                detected_type = self.auto_detect_type(file_path)
 
-                def on_items_selected(selected_items):
-                    base_name = os.path.basename(self.current_file_path)
-                    save_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="جاهز_للطباعة_" + base_name, filetypes=[("Excel Files", "*.xlsx")])
-                    if not save_path:
+            if detected_type == "محلاية + خمس مواد":
+                try:
+                    items, _ = get_unique_items(file_path)
+                    if not items:
+                        continue
+                    
+                    def process_with_selection(selected_items):
+                        base_name = os.path.basename(file_path)
+                        save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
+                        format_sales_orders(file_path, save_path, selected_items, remove_empty=self.chk_var.get())
+                        if direct_print:
+                            print_excel_file(save_path)
+                        nonlocal success_count
+                        success_count += 1
+
+                    if len(self.current_files) == 1:
+                        ItemSelectorWindow(self.root, items, process_with_selection)
                         return
-                    try:
-                        format_sales_orders(self.current_file_path, save_path, selected_items, remove_empty=self.chk_var.get())
-                        messagebox.showinfo("نجاح", f"تم استخراج الملف بنجاح:\n{save_path}")
-                    except Exception as e:
-                        messagebox.showerror("خطأ", f"حدث خطأ أثناء حفظ الملف:\n{str(e)}")
+                    else:
+                        base_name = os.path.basename(file_path)
+                        save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
+                        format_sales_orders(file_path, save_path, items, remove_empty=self.chk_var.get())
+                        if direct_print:
+                            print_excel_file(save_path)
+                        success_count += 1
+                except Exception:
+                    pass
 
-                ItemSelectorWindow(self.root, items, on_items_selected)
+            elif detected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
+                try:
+                    base_name = os.path.basename(file_path)
+                    save_path = os.path.join(os.path.dirname(file_path), "جاهز_للطباعة_" + base_name)
+                    format_standard_two_column_sheet(file_path, save_path, detected_type)
+                    if direct_print:
+                        print_excel_file(save_path)
+                    success_count += 1
+                except Exception:
+                    pass
 
-            except Exception as e:
-                messagebox.showerror("خطأ", f"حدث خطأ أثناء قراءة المواد:\n{str(e)}")
-
-        elif selected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
-            base_name = os.path.basename(self.current_file_path)
-            save_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="جاهز_للطباعة_" + base_name, filetypes=[("Excel Files", "*.xlsx")])
-            if not save_path:
-                return
-            try:
-                format_standard_two_column_sheet(self.current_file_path, save_path, selected_type)
-                messagebox.showinfo("نجاح", f"تم استخراج ملف {selected_type} بنجاح:\n{save_path}")
-            except Exception as e:
-                messagebox.showerror("خطأ", f"حدث خطأ أثناء معالجة الملف:\n{str(e)}")
-        else:
-            messagebox.showwarning("تنبيه", "يرجى تحديد نوع ملف صالح للمعالجة.")
+        if success_count > 0:
+            msg = f"تمت معالجة وإخراج {success_count} ملف بنجاح!"
+            if direct_print:
+                msg += "\nوتم إرسالها للطباعة المباشرة على الطابعة الحرارية."
+            messagebox.showinfo("نجاح تام", msg)
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    if HAS_DND:
+        root = TkinterDnD.Tk()
+    else:
+        root = tk.Tk()
     app = App(root)
     root.mainloop()
