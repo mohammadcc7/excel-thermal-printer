@@ -69,7 +69,7 @@ def get_unique_items(input_path):
             
     return sorted(list(items)), header_row
 
-# --- معالجة الملف الأول: طلبيات المبيع المخصصة ---
+# --- معالجة الملف الأول: محلاية + خمس مواد ---
 def format_sales_orders(input_path, output_path, selected_items, remove_empty=True):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -90,7 +90,7 @@ def format_sales_orders(input_path, output_path, selected_items, remove_empty=Tr
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
-    ws_out.title = "طلبيات المبيع"
+    ws_out.title = "محلاية و خمس مواد"
     ws_out.views.sheetView[0].rightToLeft = True
 
     ws_out.append(["المادة", "اسم العميل", "الكمية"])
@@ -271,7 +271,7 @@ def format_oven_sheet(input_path, output_path):
 
     wb_out.save(output_path)
 
-# --- نافذة تحديد المواد لطلبيات المبيع (الأزرار الكبيرة والمخصصة) ---
+# --- نافذة تحديد المواد لطلبيات المبيع ---
 class ItemSelectorWindow(tk.Toplevel):
     def __init__(self, parent, items, callback):
         super().__init__(parent)
@@ -284,11 +284,9 @@ class ItemSelectorWindow(tk.Toplevel):
         lbl = tk.Label(self, text="اختر المواد المراد إدراجها في التقرير:", font=("Arial", 11, "bold"))
         lbl.pack(pady=8)
 
-        # أزرار الاختيار السريع المخصصة بحجم كبيـر وخط واضح
         frame_quick = tk.LabelFrame(self, text="اختيار سريع مخصص", font=("Arial", 10, "bold"))
         frame_quick.pack(fill="x", padx=15, pady=5)
 
-        # زر محلاية + غريبة
         btn_both = RoundedButton(
             frame_quick, 
             text="محلاية + غريبة", 
@@ -302,7 +300,6 @@ class ItemSelectorWindow(tk.Toplevel):
         )
         btn_both.pack(side="right", padx=10, pady=10)
 
-        # زر خمس مواد
         btn_five = RoundedButton(
             frame_quick, 
             text="خمس مواد", 
@@ -316,7 +313,6 @@ class ItemSelectorWindow(tk.Toplevel):
         )
         btn_five.pack(side="right", padx=10, pady=10)
 
-        # أزرار التحكم العامة
         frame_btns = tk.Frame(self)
         frame_btns.pack(fill="x", padx=15, pady=5)
 
@@ -326,7 +322,6 @@ class ItemSelectorWindow(tk.Toplevel):
         btn_none = tk.Button(frame_btns, text="إلغاء الكل", font=("Arial", 10), command=self.deselect_all)
         btn_none.pack(side="right", padx=5)
 
-        # قائمة المواد القابلة للتمرير
         container = tk.Frame(self)
         container.pack(fill="both", expand=True, padx=15, pady=5)
 
@@ -416,7 +411,6 @@ class App:
         lbl_title = tk.Label(root, text="منسق ملفات الأمين للطابعة الحرارية (8سم)", font=("Arial", 14, "bold"))
         lbl_title.pack(pady=10)
 
-        # إطار اختيار نوع التقرير
         frame_type = tk.Frame(root)
         frame_type.pack(pady=5)
 
@@ -426,7 +420,7 @@ class App:
         self.combo_type = ttk.Combobox(
             frame_type, 
             textvariable=self.file_type_var, 
-            values=["تعرّف تلقائي", "طلبيات المبيع", "ورقة الفرن", "الملف الثالث (قريباً)"],
+            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "الملف الثالث (قريباً)"],
             state="readonly", 
             font=("Arial", 10, "bold"),
             width=22
@@ -434,14 +428,12 @@ class App:
         self.combo_type.pack(side="right", padx=5)
 
         self.chk_var = tk.BooleanVar(value=True)
-        chk = tk.Checkbutton(root, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً (لطلبيات المبيع)", variable=self.chk_var, font=("Arial", 10))
+        chk = tk.Checkbutton(root, text="حذف الصفوف فارغة/صفرية الكمية تلقائياً (لمحلاية + خمس مواد)", variable=self.chk_var, font=("Arial", 10))
         chk.pack(pady=3)
 
-        # زر اختيار الملف
         btn_select = tk.Button(root, text="اختر ملف Excel لاستعراضه وتنسيقه", font=("Arial", 11, "bold"), bg="#007bff", fg="white", padx=15, pady=6, command=self.load_file)
         btn_select.pack(pady=8)
 
-        # إطار المعاينة
         frame_preview = tk.LabelFrame(root, text="معاينة سريعة للملف", font=("Arial", 10, "bold"))
         frame_preview.pack(fill="both", expand=True, padx=15, pady=5)
 
@@ -463,7 +455,6 @@ class App:
         scroll_y.pack(side="left", fill="y")
         self.tree.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # زر المعالجة والاستخراج
         self.btn_process = tk.Button(root, text="استخراج الملف الجاهز للطباعة", font=("Arial", 12, "bold"), bg="#28a745", fg="white", padx=20, pady=8, state="disabled", command=self.process_file)
         self.btn_process.pack(pady=12)
 
@@ -474,7 +465,11 @@ class App:
 
         self.current_file_path = file_path
         self.preview_excel(file_path)
+        
+        # إعادة ضبط نوع التقرير إلى التعرّف التلقائي ليتم فحص الملف الجديد بدقة وتحديث القائمة
+        self.file_type_var.set("تعرّف تلقائي")
         self.auto_detect_type(file_path)
+        
         self.btn_process.config(state="normal")
 
     def auto_detect_type(self, file_path):
@@ -485,7 +480,7 @@ class App:
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
                 self.combo_type.set("ورقة الفرن")
             else:
-                self.combo_type.set("طلبيات المبيع")
+                self.combo_type.set("محلاية + خمس مواد")
         except Exception:
             pass
 
@@ -523,12 +518,11 @@ class App:
 
         selected_type = self.file_type_var.get()
         
-        # إذا كان خيار تعرّف تلقائي ما زال مفعلاً، قم باكتشافه مجدداً
         if selected_type == "تعرّف تلقائي":
             self.auto_detect_type(self.current_file_path)
             selected_type = self.file_type_var.get()
 
-        if selected_type == "طلبيات المبيع":
+        if selected_type == "محلاية + خمس مواد":
             try:
                 items, _ = get_unique_items(self.current_file_path)
                 if not items:
@@ -542,7 +536,7 @@ class App:
                         return
                     try:
                         format_sales_orders(self.current_file_path, save_path, selected_items, remove_empty=self.chk_var.get())
-                        messagebox.showinfo("نجاح", f"تم استخراج ملف طلبيات المبيع بنجاح:\n{save_path}")
+                        messagebox.showinfo("نجاح", f"تم استخراج الملف بنجاح:\n{save_path}")
                     except Exception as e:
                         messagebox.showerror("خطأ", f"حدث خطأ أثناء حفظ الملف:\n{str(e)}")
 
