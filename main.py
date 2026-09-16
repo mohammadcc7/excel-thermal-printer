@@ -195,7 +195,7 @@ def format_sales_orders(input_path, output_path, selected_items, remove_empty=Tr
 
     wb_out.save(output_path)
 
-# --- معالجة الملف الثاني والثالث: ورقة الفرن وهرايس بانواعها ---
+# --- معالجة الملفات القياسية (ورقة الفرن، هرايس بانواعها، مستودع الجاهز) ---
 def format_standard_two_column_sheet(input_path, output_path, report_title):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -203,7 +203,13 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     data = []
     for row in ws_src.iter_rows(values_only=True):
         if any(row):
-            data.append([row[0], row[1]])
+            valid_vals = [v for v in row if v is not None and str(v).strip() != '']
+            if len(valid_vals) >= 2:
+                # إذا كان الملف يحتوي على 3 أعمدة (مثل مستودع الجاهز: اسم المادة، المستودع، المطلوب)
+                # يتم أخذ العمود الأول (اسم المادة) والأخير (المطلوب)، وتخطّي عمود المستودع بالمنتصف تلقائياً.
+                item_name = valid_vals[0]
+                qty = valid_vals[-1]
+                data.append([item_name, qty])
 
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
@@ -420,7 +426,7 @@ class App:
         self.combo_type = ttk.Combobox(
             frame_type, 
             textvariable=self.file_type_var, 
-            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "هرايس بانواعها"],
+            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"],
             state="readonly", 
             font=("Arial", 10, "bold"),
             width=22
@@ -477,12 +483,14 @@ class App:
         try:
             wb = openpyxl.load_workbook(file_path, data_only=True)
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
-                # التحقق مما إذا كان الملف يخص ورقة الفرن أو هرايس بانواعها عبر شيت رأسية التقرير أو محتوى البيانات
                 if 'رأسية التقرير' in wb.sheetnames:
                     ws_head = wb['رأسية التقرير']
                     val = str(ws_head.cell(row=1, column=2).value or '')
                     if 'هرايس' in val:
                         self.combo_type.set("هرايس بانواعها")
+                        return
+                    elif 'مستودع' in val:
+                        self.combo_type.set("مستودع الجاهز")
                         return
                 self.combo_type.set("ورقة الفرن")
             else:
@@ -551,7 +559,7 @@ class App:
             except Exception as e:
                 messagebox.showerror("خطأ", f"حدث خطأ أثناء قراءة المواد:\n{str(e)}")
 
-        elif selected_type in ["ورقة الفرن", "هرايس بانواعها"]:
+        elif selected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
             base_name = os.path.basename(self.current_file_path)
             save_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="جاهز_للطباعة_" + base_name, filetypes=[("Excel Files", "*.xlsx")])
             if not save_path:
