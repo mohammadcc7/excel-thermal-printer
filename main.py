@@ -4,10 +4,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
 import subprocess
 import platform
 
-# --- معالجة الملفات ذات الثلاثة أعمدة (محلاية + غريبة أو الخمس مواد) ---
 def format_sales_orders_custom(input_path, output_path, selected_items, report_title, remove_empty=True):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -32,12 +32,10 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
     ws_out.views.sheetView[0].rightToLeft = True
 
     ws_out.append(["المادة", "اسم العميل", "الكمية"])
-
     totals_per_item = {}
 
     for r in range(header_row + 1, ws_src.max_row + 1):
         qty_val = ws_src.cell(row=r, column=col_qty).value
-        
         if remove_empty and (qty_val is None or str(qty_val).strip() in ['', '0', 'None', '0.0']):
             continue
 
@@ -54,28 +52,24 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
 
         if isinstance(qty_val, float) and qty_val.is_integer():
             qty_val = int(qty_val)
-        elif isinstance(qty_val, (int, float)):
-            pass
-        else:
+        elif not isinstance(qty_val, (int, float)):
             try:
                 qty_val = int(num_qty) if num_qty.is_integer() else num_qty
             except:
                 pass
 
         totals_per_item[item_val] = totals_per_item.get(item_val, 0) + num_qty
-
         ws_out.append([item_val, client_val, qty_val])
 
     ws_out.append([])
-    
     total_rows_start = ws_out.max_row + 1
     for item, total in totals_per_item.items():
         total_formatted = int(total) if total.is_integer() else round(total, 2)
         ws_out.append([f"مجموع {item}", "الإجمالي", total_formatted])
 
-    font_header = Font(name='Arial', size=12, bold=True, color='FFFFFF')
-    font_body = Font(name='Arial', size=11, bold=True, color='000000')
-    font_total = Font(name='Arial', size=12, bold=True, color='000000')
+    font_header = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    font_body = Font(name='Arial', size=10, bold=True, color='000000')
+    font_total = Font(name='Arial', size=11, bold=True, color='000000')
 
     fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
@@ -83,28 +77,26 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
 
     thin_side = Side(style='thin', color='000000')
     double_side = Side(style='double', color='000000')
-    
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
+    center_alignment = Alignment(horizontal='center', vertical='center')
 
-    center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-    ws_out.row_dimensions[1].height = 28
+    ws_out.row_dimensions[1].height = 22
 
     for r in range(1, ws_out.max_row + 1):
         if r > 1:
-            ws_out.row_dimensions[r].height = 25
+            ws_out.row_dimensions[r].height = 19
+        
         is_header = (r == 1)
         is_total_row = (r >= total_rows_start)
         
         if not is_header and ws_out.cell(row=r, column=1).value is None:
-            ws_out.row_dimensions[r].height = 10
+            ws_out.row_dimensions[r].height = 6
             continue
 
         for c in range(1, 4):
             cell = ws_out.cell(row=r, column=c)
             cell.alignment = center_alignment
-            
             if is_header:
                 cell.font = font_header
                 cell.border = border_all
@@ -120,20 +112,17 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
                     cell.fill = fill_zebra
 
     ws_out.column_dimensions['A'].width = 18
-    ws_out.column_dimensions['B'].width = 18
-    ws_out.column_dimensions['C'].width = 8
+    ws_out.column_dimensions['B'].width = 11
+    ws_out.column_dimensions['C'].width = 6
 
-    ws_out.page_margins.left = ws_out.page_margins.right = 0.0
+    ws_out.page_margins.left = ws_out.page_margins.right = 0.01
     ws_out.page_margins.top = ws_out.page_margins.bottom = 0.01
-
     ws_out.page_setup.orientation = ws_out.ORIENTATION_PORTRAIT
     ws_out.sheet_properties.pageSetUpPr.fitToPage = True
     ws_out.page_setup.fitToWidth = 1
     ws_out.page_setup.fitToHeight = 1
-
     wb_out.save(output_path)
 
-# --- معالجة الملفات القياسية ذات العمودين (ورقة الفرن، هرايس بانواعها، مستودع الجاهز) ---
 def format_standard_two_column_sheet(input_path, output_path, report_title):
     wb_src = openpyxl.load_workbook(input_path, data_only=True)
     ws_src = wb_src.active
@@ -169,8 +158,8 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
         ws_out.append([item_name, formatted_qty])
 
     font_title = Font(name='Arial', size=16, bold=True)
-    font_header = Font(name='Arial', size=14, bold=True, color='FFFFFF')
-    font_body = Font(name='Arial', size=13, bold=True)
+    font_header = Font(name='Arial', size=13, bold=True, color='FFFFFF')
+    font_body = Font(name='Arial', size=12, bold=True)
 
     fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
@@ -183,7 +172,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     ws_out['A1'].font = font_title
     ws_out['A1'].alignment = center_align
 
-    ws_out.row_dimensions[2].height = 28
+    ws_out.row_dimensions[2].height = 26
     for c in range(1, 3):
         cell = ws_out.cell(row=2, column=c)
         cell.font = font_header
@@ -192,7 +181,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
         cell.border = border_all
 
     for r in range(3, ws_out.max_row + 1):
-        ws_out.row_dimensions[r].height = 26
+        ws_out.row_dimensions[r].height = 24
         for c in range(1, 3):
             cell = ws_out.cell(row=r, column=c)
             cell.font = font_body
@@ -201,19 +190,78 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             if r % 2 == 1:
                 cell.fill = fill_zebra
 
-    ws_out.column_dimensions['A'].width = 28
-    ws_out.column_dimensions['B'].width = 15
+    ws_out.column_dimensions['A'].width = 22
+    ws_out.column_dimensions['B'].width = 10
 
-    ws_out.page_margins.left = ws_out.page_margins.right = 0.0
+    ws_out.page_margins.left = ws_out.page_margins.right = 0.01
     ws_out.page_margins.top = ws_out.page_margins.bottom = 0.01
     ws_out.page_setup.orientation = ws_out.ORIENTATION_PORTRAIT
     ws_out.sheet_properties.pageSetUpPr.fitToPage = True
     ws_out.page_setup.fitToWidth = 1
     ws_out.page_setup.fitToHeight = 1
-
     wb_out.save(output_path)
 
-# --- دالة الطباعة المباشرة ---
+def format_general_excel_for_thermal(input_path, output_path, remove_empty=True):
+    wb = openpyxl.load_workbook(input_path)
+    for ws in wb.worksheets:
+        ws.views.sheetView[0].rightToLeft = True
+        if remove_empty and ws.max_column >= 2:
+            rows_to_delete = []
+            for r in range(ws.max_row, 1, -1):
+                val = ws.cell(row=r, column=2).value
+                if val is None or str(val).strip() in ['', '0', 'None']:
+                    rows_to_delete.append(r)
+            for r in rows_to_delete:
+                ws.delete_rows(r)
+
+        max_r = ws.max_row
+        max_c = ws.max_column
+        if max_r == 0 or max_c == 0:
+            continue
+            
+        font_header = Font(name='Arial', size=13, bold=True, color='FFFFFF')
+        font_body = Font(name='Arial', size=12, bold=True, color='000000')
+        fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+        fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+        thin_side = Side(style='thin', color='000000')
+        border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        
+        for r in range(1, max_r + 1):
+            ws.row_dimensions[r].height = 26 if r == 1 else 24
+            is_header = (r == 1)
+            for c in range(1, max_c + 1):
+                cell = ws.cell(row=r, column=c)
+                if isinstance(cell.value, float) and cell.value.is_integer():
+                    cell.value = int(cell.value)
+                cell.font = font_header if is_header else font_body
+                cell.border = border_all
+                if is_header:
+                    cell.fill = fill_header
+                    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                else:
+                    if r % 2 == 0:
+                        cell.fill = fill_zebra
+                    if isinstance(cell.value, (int, float)):
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                    else:
+                        cell.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
+
+        total_units = 38
+        if max_c > 1:
+            ws.column_dimensions['A'].width = 22
+            rem_width = max(8, int((total_units - 22) / (max_c - 1)))
+            for c in range(2, max_c + 1):
+                ws.column_dimensions[get_column_letter(c)].width = rem_width
+        else:
+            ws.column_dimensions['A'].width = total_units
+
+        ws.page_margins.left = ws.page_margins.right = ws.page_margins.top = ws.page_margins.bottom = 0.02
+        ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+    wb.save(output_path)
+
 def print_excel_file(file_path):
     try:
         if platform.system() == 'Windows':
@@ -224,32 +272,38 @@ def print_excel_file(file_path):
     except Exception as e:
         return str(e)
 
-# --- الشاشة الرئيسية للبرنامج ---
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("منسق طلبات الأمين الحراري (8سم) - الإصدار الشامل الذكي")
-        self.root.geometry("700x660")
+        self.root.title("البرنامج الشامل لتقارير وتنسيق الطباعة الحرارية (8سم)")
+        self.root.geometry("700x680")
         self.root.resizable(False, False)
 
         self.current_files = []
 
-        lbl_title = tk.Label(root, text="منسق ملفات الأمين للطابعة الحرارية (8سم)", font=("Arial", 14, "bold"))
+        lbl_title = tk.Label(root, text="البرنامج الشامل لمعالجة وتنسيق ملفات الأمين والطباعة", font=("Arial", 14, "bold"))
         lbl_title.pack(pady=10)
 
-        frame_controls = tk.LabelFrame(root, text="إعدادات ومعالجة التقارير", font=("Arial", 10, "bold"))
+        frame_controls = tk.LabelFrame(root, text="إعدادات ومعالجة التقارير والأدوات", font=("Arial", 10, "bold"))
         frame_controls.pack(fill="x", padx=15, pady=5)
 
         frame_type = tk.Frame(frame_controls)
         frame_type.pack(pady=8, fill="x", padx=10)
 
-        tk.Label(frame_type, text="نوع التقرير:", font=("Arial", 11, "bold")).pack(side="right", padx=5)
+        tk.Label(frame_type, text="نوع التقرير / الأداة:", font=("Arial", 11, "bold")).pack(side="right", padx=5)
         
         self.file_type_var = tk.StringVar(value="تعرّف تلقائي")
         self.combo_type = ttk.Combobox(
             frame_type, textvariable=self.file_type_var, 
-            values=["تعرّف تلقائي", "محلاية + خمس مواد", "ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"],
-            state="readonly", font=("Arial", 10, "bold"), width=22
+            values=[
+                "تعرّف تلقائي", 
+                "محلاية + خمس مواد", 
+                "ورقة الفرن", 
+                "هرايس بانواعها", 
+                "مستودع الجاهز", 
+                "تنسيق إكسل عام (حراري 8سم)"
+            ],
+            state="readonly", font=("Arial", 10, "bold"), width=25
         )
         self.combo_type.pack(side="right", padx=5)
 
@@ -274,7 +328,7 @@ class App:
         scroll_y = ttk.Scrollbar(frame_preview, orient="vertical")
 
         self.tree = ttk.Treeview(
-            frame_preview, show="headings", height=7, 
+            frame_preview, show="headings", height=6, 
             xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set
         )
         
@@ -297,38 +351,27 @@ class App:
     def handle_loaded_files(self, file_paths):
         self.current_files = file_paths
         self.preview_files(file_paths)
-        
         if len(file_paths) == 1:
             detected = self.auto_detect_type(file_paths[0])
             self.file_type_var.set(detected)
         else:
             self.file_type_var.set("تعرّف تلقائي")
-            
         self.btn_process.config(state="normal")
 
     def auto_detect_type(self, file_path):
         try:
             filename = os.path.basename(file_path).lower()
-            
             if 'هرايس' in filename or 'harees' in filename:
                 return "هرايس بانواعها"
             elif 'مستودع' in filename or 'جاهز' in filename or 'warehouse' in filename:
                 return "مستودع الجاهز"
             elif 'فرن' in filename or 'oven' in filename:
                 return "ورقة الفرن"
-            elif 'مبيع' in filename or 'طلبات' in filename or 'محلاية' in filename:
-                return "محلاية + خمس مواد"
+            elif 'تنسيق' in filename:
+                return "تنسيق إكسل عام (حراري 8سم)"
 
             wb = openpyxl.load_workbook(file_path, data_only=True)
             if 'تأثير الطلبيات على المخزون' in wb.sheetnames:
-                if 'رأسية التقرير' in wb.sheetnames:
-                    ws_head = wb['رأسية التقرير']
-                    for r in range(1, 4):
-                        val = str(ws_head.cell(row=r, column=2).value or '').lower()
-                        if 'هرايس' in val:
-                            return "هرايس بانواعها"
-                        elif 'مستودع' in val:
-                            return "مستودع الجاهز"
                 return "ورقة الفرن"
             else:
                 return "محلاية + خمس مواد"
@@ -379,24 +422,37 @@ class App:
             else:
                 detected_type = self.auto_detect_type(file_path)
 
-            if detected_type in ["ورقة الفرن", "هرايس بانواعها", "مستودع الجاهز"]:
-                try:
-                    if detected_type == "هرايس بانواعها":
-                        out_name = "جاهز_للطباعة_هرايس.xlsx"
-                    elif detected_type == "مستودع الجاهز":
-                        out_name = "جاهز_للطباعة_مستودع_الجاهز.xlsx"
-                    else:
-                        out_name = "جاهز_للطباعة_ورقة_الفرن.xlsx"
+            try:
+                base_name = os.path.basename(file_path)
+                if detected_type == "تنسيق إكسل عام (حراري 8سم)":
+                    save_path = os.path.join(output_dir, "تنسيق_عام_" + base_name)
+                    format_general_excel_for_thermal(file_path, save_path, remove_empty=self.chk_var.get())
+                    if direct_print:
+                        print_excel_file(save_path)
+                    processed_count += 1
 
-                    save_path = os.path.join(output_dir, out_name)
+                elif detected_type == "هرايس بانواعها":
+                    save_path = os.path.join(output_dir, "جاهز_للطباعة_هرايس.xlsx")
                     format_standard_two_column_sheet(file_path, save_path, detected_type)
                     if direct_print:
                         print_excel_file(save_path)
                     processed_count += 1
-                except Exception:
-                    pass
-            elif detected_type == "محلاية + خمس مواد":
-                try:
+
+                elif detected_type == "مستودع الجاهز":
+                    save_path = os.path.join(output_dir, "جاهز_للطباعة_مستودع_الجاهز.xlsx")
+                    format_standard_two_column_sheet(file_path, save_path, detected_type)
+                    if direct_print:
+                        print_excel_file(save_path)
+                    processed_count += 1
+
+                elif detected_type == "ورقة الفرن":
+                    save_path = os.path.join(output_dir, "جاهز_للطباعة_ورقة_الفرن.xlsx")
+                    format_standard_two_column_sheet(file_path, save_path, detected_type)
+                    if direct_print:
+                        print_excel_file(save_path)
+                    processed_count += 1
+
+                elif detected_type == "محلاية + خمس مواد":
                     path_both = os.path.join(output_dir, "جاهز_للطباعة_محلاية_وغريبة.xlsx")
                     format_sales_orders_custom(
                         file_path, path_both, 
@@ -419,10 +475,10 @@ class App:
                         print_excel_file(path_five)
 
                     processed_count += 2
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
-        msg = f"تمت معالجة وإخراج جميع الملفات بنجاح تام ({processed_count} ملف)!\nموجودة الآن على سطح المكتب داخل مجلد (جاهز للطباعه)."
+        msg = f"تمت معالجة وإخراج جميع الملفات بنجاح تام ({processed_count} عملية)!\nموجودة الآن على سطح المكتب داخل مجلد (جاهز للطباعه)."
         if direct_print:
             msg += "\nوتم إرسالها للطباعة المباشرة على الطابعة الحرارية."
         messagebox.showinfo("نجاح تام", msg)
