@@ -430,7 +430,19 @@ class App:
         btn_txt_select = tk.Button(frame_txt_btns, text='📂 (واحدة أو أكثر) Excel اختر ملفات', font=('Arial', 10, 'bold'), bg='#28a745', fg='white', padx=10, pady=5, command=self.load_txt_files_dialog)
         btn_txt_select.pack(side='left', padx=5)
 
-        self.btn_txt_convert = tk.Button(frame_txt_btns, text='🔄 TXT (Unicode) تحويل الملفات إلى', font=('Arial', 10, 'bold'), bg='#007bff', fg='white', padx=10, pady=5, state='disabled', command=self.convert_to_txt_files)
+        self.btn_txt_convert = tk.Button(
+            frame_txt_btns,
+            text='🔄 TXT (Unicode) تحويل الملفات إلى',
+            font=('Tahoma', 11, 'bold'),
+            bg='#0069d9',
+            fg='#ffffff',
+            activebackground='#0056b3',
+            activeforeground='#ffffff',
+            padx=12,
+            pady=6,
+            state='disabled',
+            command=self.convert_to_txt_files
+        )
         self.btn_txt_convert.pack(side='left', padx=5)
 
     def load_files_dialog(self):
@@ -578,7 +590,31 @@ class App:
                         format_sales_orders_custom(file_path, path_five, selected_items=five_items_set, report_title='خمس مواد', remove_empty=self.chk_var.get())
                         if direct_print:
                             print_excel_file(path_five)
-                        processed_count += 2
+
+                        # استخراج الورقتين الجديدتين تلقائياً مع ملف حركة المواد
+                        path_shaabiyat = os.path.join(output_dir, 'جاهز_للطباعة_ورقة_الشعبيات.xlsx')
+                        format_paired_items_by_client(
+                            file_path,
+                            path_shaabiyat,
+                            items_pair=['شعيبيات بالقشطة', 'شعيبيات جوز'],
+                            report_title='ورقة الشعبيات',
+                            remove_empty=self.chk_var.get()
+                        )
+                        if direct_print:
+                            print_excel_file(path_shaabiyat)
+
+                        path_cheese_milk = os.path.join(output_dir, 'جاهز_للطباعة_جبنة_حلوم_وحليب_مطبوخ.xlsx')
+                        format_paired_items_by_client(
+                            file_path,
+                            path_cheese_milk,
+                            items_pair=['جبنة حلوم', 'حليب مطبوخ'],
+                            report_title='جبنة حلوم وحليب مطبوخ',
+                            remove_empty=self.chk_var.get()
+                        )
+                        if direct_print:
+                            print_excel_file(path_cheese_milk)
+
+                        processed_count += 4
                     except Exception:
                         pass
 
