@@ -36,7 +36,7 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
     ws_out.merge_cells('A1:C1')
     ws_out['A1'] = report_title
 
-    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    # الصف 2: فاصل واضح بين العنوان الرئيسي وعناوين الأعمدة
     ws_out.append([])
     title_sep_row = ws_out.max_row
 
@@ -94,7 +94,7 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
     border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
     center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    ws_out.row_dimensions[1].height = 30
+    ws_out.row_dimensions[1].height = 34
     for c in range(1, 4):
         cell = ws_out.cell(row=1, column=c)
         cell.font = font_title
@@ -102,7 +102,7 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
         cell.alignment = center_alignment
         cell.border = border_all
 
-    ws_out.row_dimensions[title_sep_row].height = 8
+    ws_out.row_dimensions[title_sep_row].height = 10
 
     ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 4):
@@ -141,7 +141,7 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
     ws_out.page_setup.orientation = ws_out.ORIENTATION_PORTRAIT
     ws_out.sheet_properties.pageSetUpPr.fitToPage = True
     ws_out.page_setup.fitToWidth = 1
-    ws_out.page_setup.fitToHeight = 1
+    ws_out.page_setup.fitToHeight = 0
     wb_out.save(output_path)
 
 
@@ -165,7 +165,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     ws_out.merge_cells('A1:B1')
     ws_out['A1'] = report_title
 
-    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    # الصف 2: فاصل واضح بين العنوان الرئيسي وعناوين الأعمدة
     ws_out.append([])
     title_sep_row = ws_out.max_row
 
@@ -187,16 +187,16 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             ws_out.append([item_name, formatted_qty])
             data_rows.append(ws_out.max_row)
 
-    font_title = Font(name='Arial', size=15, bold=True, color='FFFFFF')
-    font_header = Font(name='Arial', size=14, bold=True, color='FFFFFF')
-    font_body = Font(name='Arial', size=13, bold=True, color='000000')
+    font_title = Font(name='Arial', size=14, bold=True, color='FFFFFF')
+    font_header = Font(name='Arial', size=13, bold=True, color='FFFFFF')
+    font_body = Font(name='Arial', size=12, bold=True, color='000000')
     fill_black = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
     thin_side = Side(style='thin', color='000000')
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    ws_out.row_dimensions[1].height = 32
+    ws_out.row_dimensions[1].height = 34
     for c in range(1, 3):
         cell = ws_out.cell(row=1, column=c)
         cell.font = font_title
@@ -204,7 +204,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
         cell.alignment = center_align
         cell.border = border_all
 
-    ws_out.row_dimensions[title_sep_row].height = 8
+    ws_out.row_dimensions[title_sep_row].height = 10
 
     ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 3):
@@ -221,7 +221,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             cell.font = font_body
             cell.alignment = center_align
             cell.border = border_all
-            if idx % 2 == 0:
+            if idx % 2 == 1:
                 cell.fill = fill_zebra
 
     ws_out.column_dimensions['A'].width = 28
@@ -231,7 +231,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     ws_out.page_setup.orientation = ws_out.ORIENTATION_PORTRAIT
     ws_out.sheet_properties.pageSetUpPr.fitToPage = True
     ws_out.page_setup.fitToWidth = 1
-    ws_out.page_setup.fitToHeight = 1
+    ws_out.page_setup.fitToHeight = 0
     wb_out.save(output_path)
 
 
@@ -296,7 +296,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     ws_out.merge_cells('A1:C1')
     ws_out['A1'] = report_title
 
-    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    # الصف 2: فاصل واضح بين العنوان الرئيسي وعناوين الأعمدة
     ws_out.append([])
     title_sep_row = ws_out.max_row
 
@@ -349,7 +349,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
 
     center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    ws_out.row_dimensions[1].height = 30
+    ws_out.row_dimensions[1].height = 34
     for c in range(1, 4):
         cell = ws_out.cell(row=1, column=c)
         cell.font = font_title
@@ -357,7 +357,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
         cell.alignment = center_alignment
         cell.border = border_all
 
-    ws_out.row_dimensions[title_sep_row].height = 8
+    ws_out.row_dimensions[title_sep_row].height = 10
 
     ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 4):
@@ -397,7 +397,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     ws_out.page_setup.orientation = ws_out.ORIENTATION_PORTRAIT
     ws_out.sheet_properties.pageSetUpPr.fitToPage = True
     ws_out.page_setup.fitToWidth = 1
-    ws_out.page_setup.fitToHeight = 1
+    ws_out.page_setup.fitToHeight = 0
 
     wb_out.save(output_path)
 
