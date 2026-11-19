@@ -32,13 +32,17 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
     ws_out.title = report_title[:31]
     ws_out.views.sheetView[0].rightToLeft = True
 
-    # صف العنوان الرئيسي المدمج بخلفية سوداء وخط أبيض
+    # الصف 1: عنوان الصفحة مدمج بخلفية سوداء وخط أبيض
     ws_out.merge_cells('A1:C1')
     ws_out['A1'] = report_title
 
-    # صف رؤوس الأعمدة
+    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    ws_out.append([])
+    title_sep_row = ws_out.max_row
+
+    # الصف 3: عناوين الأعمدة
     ws_out.append(['المادة', 'اسم العميل', 'الكمية'])
-    col_header_row = 2
+    col_header_row = ws_out.max_row
 
     totals_per_item = {}
     data_rows = []
@@ -98,6 +102,8 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
         cell.alignment = center_alignment
         cell.border = border_all
 
+    ws_out.row_dimensions[title_sep_row].height = 8
+
     ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 4):
         cell = ws_out.cell(row=col_header_row, column=c)
@@ -155,12 +161,19 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     ws_out.title = report_title[:31]
     ws_out.views.sheetView[0].rightToLeft = True
 
-    # صف العنوان الرئيسي المدمج بخلفية سوداء وخط أبيض
+    # الصف 1: عنوان الصفحة مدمج بخلفية سوداء وخط أبيض
     ws_out.merge_cells('A1:B1')
     ws_out['A1'] = report_title
-    ws_out['A2'] = 'اسم المادة'
-    ws_out['B2'] = 'المطلوب'
 
+    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    ws_out.append([])
+    title_sep_row = ws_out.max_row
+
+    # الصف 3: عناوين الأعمدة
+    ws_out.append(['اسم المادة', 'المطلوب'])
+    col_header_row = ws_out.max_row
+
+    data_rows = []
     for r in data:
         item_name, qty = (r[0], r[1])
         if item_name in ('اسم المادة', None) or str(item_name).strip() == '':
@@ -172,6 +185,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             except (ValueError, TypeError):
                 formatted_qty = qty
             ws_out.append([item_name, formatted_qty])
+            data_rows.append(ws_out.max_row)
 
     font_title = Font(name='Arial', size=15, bold=True, color='FFFFFF')
     font_header = Font(name='Arial', size=14, bold=True, color='FFFFFF')
@@ -190,22 +204,24 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
         cell.alignment = center_align
         cell.border = border_all
 
-    ws_out.row_dimensions[2].height = 28
+    ws_out.row_dimensions[title_sep_row].height = 8
+
+    ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 3):
-        cell = ws_out.cell(row=2, column=c)
+        cell = ws_out.cell(row=col_header_row, column=c)
         cell.font = font_header
         cell.fill = fill_black
         cell.alignment = center_align
         cell.border = border_all
 
-    for r in range(3, ws_out.max_row + 1):
+    for idx, r in enumerate(data_rows):
         ws_out.row_dimensions[r].height = 26
         for c in range(1, 3):
             cell = ws_out.cell(row=r, column=c)
             cell.font = font_body
             cell.alignment = center_align
             cell.border = border_all
-            if r % 2 == 1:
+            if idx % 2 == 0:
                 cell.fill = fill_zebra
 
     ws_out.column_dimensions['A'].width = 28
@@ -276,9 +292,17 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     ws_out.title = report_title[:31]
     ws_out.views.sheetView[0].rightToLeft = True
 
+    # الصف 1: عنوان الصفحة مدمج بخلفية سوداء وخط أبيض
     ws_out.merge_cells('A1:C1')
     ws_out['A1'] = report_title
+
+    # الصف 2: فاصل بين عنوان الصفحة وعناوين الأعمدة
+    ws_out.append([])
+    title_sep_row = ws_out.max_row
+
+    # الصف 3: عناوين الأعمدة
     ws_out.append(['المادة', 'اسم المحل', 'الكمية'])
+    col_header_row = ws_out.max_row
 
     total_item1 = 0.0
     total_item2 = 0.0
@@ -333,9 +357,11 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
         cell.alignment = center_alignment
         cell.border = border_all
 
-    ws_out.row_dimensions[2].height = 28
+    ws_out.row_dimensions[title_sep_row].height = 8
+
+    ws_out.row_dimensions[col_header_row].height = 28
     for c in range(1, 4):
-        cell = ws_out.cell(row=2, column=c)
+        cell = ws_out.cell(row=col_header_row, column=c)
         cell.font = font_header
         cell.fill = fill_black
         cell.alignment = center_alignment
@@ -657,7 +683,13 @@ class App:
                 if detected_type == 'محلاية + خمس مواد':
                     try:
                         path_both = os.path.join(output_dir, 'جاهز_للطباعة_محلاية_وغريبة.xlsx')
-                        format_sales_orders_custom(file_path, path_both, selected_items=['محلاية', 'غريبة بالقشطة'], report_title='محلاية + غريبة', remove_empty=self.chk_var.get())
+                        format_paired_items_by_client(
+                            file_path,
+                            path_both,
+                            items_pair=['محلاية', 'غريبة بالقشطة'],
+                            report_title='محلاية + غريبة',
+                            remove_empty=self.chk_var.get()
+                        )
                         if direct_print:
                             print_excel_file(path_both)
 
