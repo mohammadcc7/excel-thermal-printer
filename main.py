@@ -22,18 +22,27 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
         val = str(ws_src.cell(row=header_row, column=c).value or '').strip()
         if val in ['المادة', 'اسم المادة']:
             col_item = c
-        else:
-            if val in ['اسم العميل', 'العميل', 'المحل']:
-                col_client = c
-            else:
-                if val in ['تجهيز', 'الكمية', 'كمية']:
-                    col_qty = c
+        elif val in ['اسم العميل', 'العميل', 'المحل']:
+            col_client = c
+        elif val in ['تجهيز', 'الكمية', 'كمية']:
+            col_qty = c
+
     wb_out = openpyxl.Workbook()
     ws_out = wb_out.active
     ws_out.title = report_title[:31]
     ws_out.views.sheetView[0].rightToLeft = True
+
+    # صف العنوان الرئيسي المدمج بخلفية سوداء وخط أبيض
+    ws_out.merge_cells('A1:C1')
+    ws_out['A1'] = report_title
+
+    # صف رؤوس الأعمدة
     ws_out.append(['المادة', 'اسم العميل', 'الكمية'])
+    col_header_row = 2
+
     totals_per_item = {}
+    data_rows = []
+
     for r in range(header_row + 1, ws_src.max_row + 1):
         qty_val = ws_src.cell(row=r, column=col_qty).value
         if remove_empty and (qty_val is None or str(qty_val).strip() in ['', '0', 'None', '0.0']):
@@ -48,58 +57,76 @@ def format_sales_orders_custom(input_path, output_path, selected_items, report_t
             num_qty = 0.0
         if isinstance(qty_val, float) and qty_val.is_integer():
             qty_val = int(qty_val)
-        else:
-            if isinstance(qty_val, (int, float)):
+        elif not isinstance(qty_val, (int, float)):
+            try:
+                qty_val = int(num_qty) if num_qty.is_integer() else num_qty
+            except Exception:
                 pass
-            else:
-                try:
-                    qty_val = int(num_qty) if num_qty.is_integer() else num_qty
-                except Exception:
-                    pass
         totals_per_item[item_val] = totals_per_item.get(item_val, 0) + num_qty
         ws_out.append([item_val, client_val, qty_val])
+        data_rows.append(ws_out.max_row)
+
     ws_out.append([])
-    total_rows_start = ws_out.max_row + 1
+    sep_row = ws_out.max_row
+
+    total_rows = []
     for item, total in totals_per_item.items():
         total_formatted = int(total) if float(total).is_integer() else round(total, 2)
         ws_out.append([f'مجموع {item}', 'الإجمالي', total_formatted])
+        total_rows.append(ws_out.max_row)
+
+    font_title = Font(name='Arial', size=14, bold=True, color='FFFFFF')
     font_header = Font(name='Arial', size=12, bold=True, color='FFFFFF')
     font_body = Font(name='Arial', size=11, bold=True, color='000000')
     font_total = Font(name='Arial', size=12, bold=True, color='000000')
-    fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+
+    fill_black = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
     fill_total = PatternFill(start_color='E2E2E2', end_color='E2E2E2', fill_type='solid')
+
     thin_side = Side(style='thin', color='000000')
     double_side = Side(style='double', color='000000')
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     border_total = Border(left=thin_side, right=thin_side, top=thin_side, bottom=double_side)
     center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    ws_out.row_dimensions[1].height = 28
-    for r in range(1, ws_out.max_row + 1):
-        if r > 1:
-            ws_out.row_dimensions[r].height = 25
-        is_header = r == 1
-        is_total_row = r >= total_rows_start
-        if not is_header and ws_out.cell(row=r, column=1).value is None:
-            ws_out.row_dimensions[r].height = 10
-            continue
+
+    ws_out.row_dimensions[1].height = 30
+    for c in range(1, 4):
+        cell = ws_out.cell(row=1, column=c)
+        cell.font = font_title
+        cell.fill = fill_black
+        cell.alignment = center_alignment
+        cell.border = border_all
+
+    ws_out.row_dimensions[col_header_row].height = 28
+    for c in range(1, 4):
+        cell = ws_out.cell(row=col_header_row, column=c)
+        cell.font = font_header
+        cell.fill = fill_black
+        cell.alignment = center_alignment
+        cell.border = border_all
+
+    ws_out.row_dimensions[sep_row].height = 10
+
+    for idx, r in enumerate(data_rows):
+        ws_out.row_dimensions[r].height = 25
         for c in range(1, 4):
             cell = ws_out.cell(row=r, column=c)
             cell.alignment = center_alignment
-            if is_header:
-                cell.font = font_header
-                cell.border = border_all
-                cell.fill = fill_header
-            else:
-                if is_total_row:
-                    cell.font = font_total
-                    cell.border = border_total
-                    cell.fill = fill_total
-                else:
-                    cell.font = font_body
-                    cell.border = border_all
-                    if r % 2 == 0:
-                        cell.fill = fill_zebra
+            cell.font = font_body
+            cell.border = border_all
+            if idx % 2 == 1:
+                cell.fill = fill_zebra
+
+    for r in total_rows:
+        ws_out.row_dimensions[r].height = 25
+        for c in range(1, 4):
+            cell = ws_out.cell(row=r, column=c)
+            cell.alignment = center_alignment
+            cell.font = font_total
+            cell.fill = fill_total
+            cell.border = border_total
+
     ws_out.column_dimensions['A'].width = 18
     ws_out.column_dimensions['B'].width = 18
     ws_out.column_dimensions['C'].width = 8
@@ -127,10 +154,13 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
     ws_out = wb_out.active
     ws_out.title = report_title[:31]
     ws_out.views.sheetView[0].rightToLeft = True
+
+    # صف العنوان الرئيسي المدمج بخلفية سوداء وخط أبيض
     ws_out.merge_cells('A1:B1')
     ws_out['A1'] = report_title
     ws_out['A2'] = 'اسم المادة'
     ws_out['B2'] = 'المطلوب'
+
     for r in data:
         item_name, qty = (r[0], r[1])
         if item_name in ('اسم المادة', None) or str(item_name).strip() == '':
@@ -142,24 +172,32 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             except (ValueError, TypeError):
                 formatted_qty = qty
             ws_out.append([item_name, formatted_qty])
-    font_title = Font(name='Arial', size=16, bold=True)
+
+    font_title = Font(name='Arial', size=15, bold=True, color='FFFFFF')
     font_header = Font(name='Arial', size=14, bold=True, color='FFFFFF')
-    font_body = Font(name='Arial', size=13, bold=True)
-    fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+    font_body = Font(name='Arial', size=13, bold=True, color='000000')
+    fill_black = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
     thin_side = Side(style='thin', color='000000')
     border_all = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
     ws_out.row_dimensions[1].height = 32
-    ws_out['A1'].font = font_title
-    ws_out['A1'].alignment = center_align
+    for c in range(1, 3):
+        cell = ws_out.cell(row=1, column=c)
+        cell.font = font_title
+        cell.fill = fill_black
+        cell.alignment = center_align
+        cell.border = border_all
+
     ws_out.row_dimensions[2].height = 28
     for c in range(1, 3):
         cell = ws_out.cell(row=2, column=c)
         cell.font = font_header
-        cell.fill = fill_header
+        cell.fill = fill_black
         cell.alignment = center_align
         cell.border = border_all
+
     for r in range(3, ws_out.max_row + 1):
         ws_out.row_dimensions[r].height = 26
         for c in range(1, 3):
@@ -169,6 +207,7 @@ def format_standard_two_column_sheet(input_path, output_path, report_title):
             cell.border = border_all
             if r % 2 == 1:
                 cell.fill = fill_zebra
+
     ws_out.column_dimensions['A'].width = 28
     ws_out.column_dimensions['B'].width = 15
     ws_out.page_margins.left = ws_out.page_margins.right = 0.0
@@ -270,13 +309,12 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     ws_out.append([f'مجموع {item2}', 'الإجمالي', fmt_tot2])
     tot2_row = ws_out.max_row
 
-    font_title = Font(name='Arial', size=13, bold=True, color='FFFFFF')
+    font_title = Font(name='Arial', size=14, bold=True, color='FFFFFF')
     font_header = Font(name='Arial', size=12, bold=True, color='FFFFFF')
     font_body = Font(name='Arial', size=11, bold=True, color='000000')
     font_total = Font(name='Arial', size=12, bold=True, color='000000')
 
-    fill_title = PatternFill(start_color='1F1F1F', end_color='1F1F1F', fill_type='solid')
-    fill_header = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
+    fill_black = PatternFill(start_color='000000', end_color='000000', fill_type='solid')
     fill_zebra = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
     fill_total = PatternFill(start_color='E2E2E2', end_color='E2E2E2', fill_type='solid')
 
@@ -291,7 +329,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     for c in range(1, 4):
         cell = ws_out.cell(row=1, column=c)
         cell.font = font_title
-        cell.fill = fill_title
+        cell.fill = fill_black
         cell.alignment = center_alignment
         cell.border = border_all
 
@@ -299,7 +337,7 @@ def format_paired_items_by_client(input_path, output_path, items_pair, report_ti
     for c in range(1, 4):
         cell = ws_out.cell(row=2, column=c)
         cell.font = font_header
-        cell.fill = fill_header
+        cell.fill = fill_black
         cell.alignment = center_alignment
         cell.border = border_all
 
@@ -361,15 +399,15 @@ class App:
         self.txt_converter_files = []
 
         # --- قسم منسق طلبات الأمين (البرنامج الرئيسي) ---
-        lbl_title = tk.Label(root, text='منسق ملفات الأمين للطابعة الحرارية (8سم)', font=('Arial', 13, 'bold'))
+        lbl_title = tk.Label(root, text='منسق ملفات الأمين للطابعة الحرارية (8سم)', font=('Tahoma', 13, 'bold'))
         lbl_title.pack(pady=5)
 
-        frame_controls = tk.LabelFrame(root, text='إعدادات ومعالجة التقارير الحرارية', font=('Arial', 10, 'bold'))
+        frame_controls = tk.LabelFrame(root, text='إعدادات ومعالجة التقارير الحرارية', font=('Tahoma', 10, 'bold'))
         frame_controls.pack(fill='x', padx=15, pady=3)
 
         frame_type = tk.Frame(frame_controls)
         frame_type.pack(pady=5, fill='x', padx=10)
-        tk.Label(frame_type, text='نوع التقرير:', font=('Arial', 10, 'bold')).pack(side='right', padx=5)
+        tk.Label(frame_type, text='نوع التقرير:', font=('Tahoma', 10, 'bold')).pack(side='right', padx=5)
         self.file_type_var = tk.StringVar(value='تعرّف تلقائي')
         self.combo_type = ttk.Combobox(
             frame_type,
@@ -384,25 +422,37 @@ class App:
                 'جبنة حلوم وحليب مطبوخ'
             ],
             state='readonly',
-            font=('Arial', 10, 'bold'),
+            font=('Tahoma', 10, 'bold'),
             width=22
         )
         self.combo_type.pack(side='right', padx=5)
 
         self.chk_var = tk.BooleanVar(value=True)
-        chk = tk.Checkbutton(frame_controls, text='حذف الصفوف فارغة/صفرية الكمية تلقائياً', variable=self.chk_var, font=('Arial', 9))
+        chk = tk.Checkbutton(frame_controls, text='حذف الصفوف فارغة/صفرية الكمية تلقائياً', variable=self.chk_var, font=('Tahoma', 9))
         chk.pack(anchor='e', padx=15, pady=2)
 
         self.direct_print_var = tk.BooleanVar(value=False)
-        chk_print = tk.Checkbutton(frame_controls, text='إرسال الملفات للطابعة الحرارية مباشرة بعد إنتاجها', variable=self.direct_print_var, font=('Arial', 9, 'bold'), fg='#d9534f')
+        chk_print = tk.Checkbutton(frame_controls, text='إرسال الملفات للطابعة الحرارية مباشرة بعد إنتاجها', variable=self.direct_print_var, font=('Tahoma', 9, 'bold'), fg='#d9534f')
         chk_print.pack(anchor='e', padx=15, pady=2)
 
         frame_btns = tk.Frame(root)
         frame_btns.pack(pady=5)
-        btn_select = tk.Button(frame_btns, text='📂 اختر ملف أو عدة ملفات Excel', font=('Arial', 10, 'bold'), bg='#007bff', fg='white', padx=10, pady=5, command=self.load_files_dialog)
+        btn_select = tk.Button(
+            frame_btns,
+            text='📂 اختر ملف أو عدة ملفات Excel',
+            font=('Tahoma', 10, 'bold'),
+            bg='#007bff',
+            fg='#ffffff',
+            activebackground='#0056b3',
+            activeforeground='#ffffff',
+            disabledforeground='#ffffff',
+            padx=10,
+            pady=5,
+            command=self.load_files_dialog
+        )
         btn_select.pack(side='left', padx=5)
 
-        frame_preview = tk.LabelFrame(root, text='معاينة الملفات المختارة', font=('Arial', 9, 'bold'))
+        frame_preview = tk.LabelFrame(root, text='معاينة الملفات المختارة', font=('Tahoma', 9, 'bold'))
         frame_preview.pack(fill='both', expand=True, padx=15, pady=3)
 
         scroll_x = ttk.Scrollbar(frame_preview, orient='horizontal')
@@ -414,30 +464,56 @@ class App:
         scroll_y.pack(side='left', fill='y')
         self.tree.pack(fill='both', expand=True, padx=5, pady=5)
 
-        self.btn_process = tk.Button(root, text='⚡ معالجة واستخراج جميع الملفات إلى مجلد سطح المكتب', font=('Arial', 11, 'bold'), bg='#28a745', fg='white', padx=15, pady=7, state='disabled', command=self.process_files)
+        self.btn_process = tk.Button(
+            root,
+            text='⚡ معالجة واستخراج جميع الملفات إلى مجلد سطح المكتب',
+            font=('Tahoma', 11, 'bold'),
+            bg='#28a745',
+            fg='#ffffff',
+            activebackground='#1e7e34',
+            activeforeground='#ffffff',
+            disabledforeground='#ffffff',
+            padx=15,
+            pady=7,
+            state='disabled',
+            command=self.process_files
+        )
         self.btn_process.pack(pady=5)
 
         # --- قسم أداة تحويل Excel إلى TXT (Unicode) بالزرين المنفصلين ---
-        frame_txt_tool = tk.LabelFrame(root, text='أداة محول ملفات Excel إلى TXT (Unicode)', font=('Arial', 10, 'bold'), fg='#0056b3')
+        frame_txt_tool = tk.LabelFrame(root, text='أداة محول ملفات Excel إلى TXT (Unicode)', font=('Tahoma', 10, 'bold'), fg='#0056b3')
         frame_txt_tool.pack(fill='x', padx=15, pady=5)
 
-        self.lbl_txt_status = tk.Label(frame_txt_tool, text='لم يتم اختيار أي ملف للتحويل', font=('Arial', 9), fg='gray')
+        self.lbl_txt_status = tk.Label(frame_txt_tool, text='لم يتم اختيار أي ملف للتحويل', font=('Tahoma', 9), fg='gray')
         self.lbl_txt_status.pack(pady=2)
 
         frame_txt_btns = tk.Frame(frame_txt_tool)
         frame_txt_btns.pack(pady=5)
 
-        btn_txt_select = tk.Button(frame_txt_btns, text='📂 (واحدة أو أكثر) Excel اختر ملفات', font=('Arial', 10, 'bold'), bg='#28a745', fg='white', padx=10, pady=5, command=self.load_txt_files_dialog)
+        btn_txt_select = tk.Button(
+            frame_txt_btns,
+            text='📂 (واحدة أو أكثر) Excel اختر ملفات',
+            font=('Tahoma', 10, 'bold'),
+            bg='#28a745',
+            fg='#ffffff',
+            activebackground='#1e7e34',
+            activeforeground='#ffffff',
+            disabledforeground='#ffffff',
+            padx=10,
+            pady=5,
+            command=self.load_txt_files_dialog
+        )
         btn_txt_select.pack(side='left', padx=5)
 
         self.btn_txt_convert = tk.Button(
             frame_txt_btns,
             text='🔄 TXT (Unicode) تحويل الملفات إلى',
             font=('Tahoma', 11, 'bold'),
-            bg='#0069d9',
+            bg='#007bff',
             fg='#ffffff',
             activebackground='#0056b3',
             activeforeground='#ffffff',
+            disabledforeground='#ffffff',
             padx=12,
             pady=6,
             state='disabled',
